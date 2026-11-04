@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 import shutil
 from html.parser import HTMLParser
@@ -36,6 +38,10 @@ BRAND_HANDLE = re.compile(r"haytamparfumerie", re.I)
 BRAND_UNDERSCORE = re.compile(r"haytam_parfumerie", re.I)
 BRAND_SPACED = re.compile(r"haytam(?:\s*-\s*|\s*<em>\s*|\s+)parfumerie(?:\s*</em>)?", re.I)
 BRAND_WORD = re.compile(r"\bhaytam\b", re.I)
+CMS_TEXT_TAGS = {"h1", "h2", "h3", "h4", "p", "span", "a"}
+CMS_BLOCKED_CONTEXT = ("card", "product", "cod-", "drawer", "cart", "menu", "facet", "collection")
+CMS_TEXTS: dict[str, dict] = {}
+CMS_IMAGES: list[dict] = []
 BLANK_TARGET_LINK = re.compile(r'<a\b(?=[^>]*\btarget="_blank")(?![^>]*\brel=)[^>]*', re.I)
 BLOCKED_SCRIPT_FILES = (
     "cart.js", "cart-notification.js", "product-form.js", "product-info.js",
@@ -101,6 +107,36 @@ def ancestors(node: dict):
     while parent:
         yield parent
         parent = parent["parent"]
+
+
+def is_cms_page(relative: str) -> bool:
+    return relative in {"index.html", "cart.html"} or relative.startswith(("pages/", "policies/", "blogs/"))
+
+
+def in_cms_blocked_context(node: dict) -> bool:
+    for item in [node, *ancestors(node)]:
+        if item["tag"] in {"html", "body"}:
+            continue
+        if any(word in token for token in classes(item) for word in CMS_BLOCKED_CONTEXT):
+            return True
+    return False
+
+
+def plain_text(fragment: str) -> str:
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
+
+
+def cms_text_key(text: str) -> str:
+    return "t:" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def write_cms_slots() -> None:
+    texts = [
+        {"key": key, "default": value["default"], "pages": sorted(value["pages"])}
+        for key, value in sorted(CMS_TEXTS.items(), key=lambda item: item[1]["default"].lower())
+    ]
+    payload = {"texts": texts, "images": CMS_IMAGES}
+    (OUTPUT / "cms-slots.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def replace_attribute(tag_text: str, name: str, value: str) -> str:
@@ -287,6 +323,10 @@ def transform_html(path: Path) -> None:
     replacements: list[tuple[int, int, str]] = []
     is_product_page = "products" in path.relative_to(OUTPUT).parts
     is_collection_page = "collections" in path.relative_to(OUTPUT).parts
+    relative_page = path.relative_to(OUTPUT).as_posix()
+    cms_page = is_cms_page(relative_page)
+    cms_image_index = 0
+    cms_last_heading = ""
 
     for node in scanner.nodes:
         tag = node["tag"]
@@ -294,6 +334,11 @@ def transform_html(path: Path) -> None:
         raw = node["raw"]
         node_classes = classes(node)
         lower_raw = raw.lower()
+
+        if cms_page and tag in {"h1", "h2", "h3", "h4"} and not in_cms_blocked_context(node):
+            heading = plain_text(source[node["open_end"]:node["close_start"]])
+            if heading:
+                cms_last_heading = heading
 
         if "blantershow-chat" in node_classes or "shopify-app-block" in node_classes or "hpf-whatsapp" in node_classes:
             replacements.append((node["start"], node["end"], ""))
@@ -338,7 +383,23 @@ def transform_html(path: Path) -> None:
                 style = f' style="width:min({width}px,100%);height:auto;aspect-ratio:{width}/{height}"'
             label = "Logo à ajouter" if "logo" in (attrs.get("alt") or "").lower() or "logo" in " ".join(node_classes).lower() else "Image à ajouter"
             class_value = "template-image-placeholder " + (attrs.get("class") or "")
-            placeholder = f'<span class="{html.escape(class_value, quote=True)}" aria-label="{label}"{style}>{label}</span>'
+            cms_attribute = ""
+            if cms_page and not in_cms_blocked_context(node):
+                cms_image_index += 1
+                cms_key = f"{relative_page}#{cms_image_index}"
+                name = ""
+                for ancestor in ancestors(node):
+                    if ancestor["tag"] == "a":
+                        name = plain_text(source[ancestor["open_end"]:ancestor["close_start"]])
+                        break
+                if not name and any("hp-bslider" in token for item in [node, *ancestors(node)] for token in classes(item)):
+                    name = "Bannière de l'accueil"
+                if not name and any("logo" in token for item in [node, *ancestors(node)] for token in classes(item)):
+                    name = "Logo"
+                name = (name or cms_last_heading or "Photo")[:80]
+                CMS_IMAGES.append({"key": cms_key, "page": relative_page, "label": label, "name": name, "index": cms_image_index})
+                cms_attribute = f' data-cms-image="{html.escape(cms_key, quote=True)}"'
+            placeholder = f'<span class="{html.escape(class_value, quote=True)}" aria-label="{label}"{style}{cms_attribute}>{label}</span>'
             replacements.append((node["start"], node["end"], placeholder))
             continue
 
@@ -382,6 +443,15 @@ def transform_html(path: Path) -> None:
 
         if tag == "style" and "data-shopify" in lower_raw:
             replacements.append((node["start"], node["open_end"], re.sub(r"\sdata-shopify(?:\s*=\s*(['\"]).*?\1)?", "", raw, flags=re.I)))
+
+        if cms_page and tag in CMS_TEXT_TAGS and not in_cms_blocked_context(node):
+            inner = source[node["open_end"]:node["close_start"]]
+            text = " ".join(html.unescape(inner).split())
+            if inner and "<" not in inner and 2 <= len(text) <= 400:
+                cms_key = cms_text_key(text)
+                entry = CMS_TEXTS.setdefault(cms_key, {"default": text, "pages": set()})
+                entry["pages"].add(relative_page)
+                replacements.append((node["start"], node["open_end"], replace_attribute(raw, "data-cms-text", cms_key)))
 
         if tag == "form":
             disabled_form = replace_attribute(raw, "action", "#")
@@ -581,6 +651,8 @@ def disable_data_loaders() -> None:
 
 
 def main() -> None:
+    CMS_TEXTS.clear()
+    CMS_IMAGES.clear()
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     shutil.copytree(ROOT, OUTPUT, ignore=ignore_copy)
@@ -589,6 +661,7 @@ def main() -> None:
         transform_html(page)
         add_local_runtime(page)
     disable_data_loaders()
+    write_cms_slots()
     for stylesheet in OUTPUT.rglob("*.css"):
         content = stylesheet.read_text(encoding="utf-8", errors="replace")
         content = re.sub(r"url\(\s*(['\"]?)(?:https?:)?//[^)]+\)", "none", content, flags=re.I)

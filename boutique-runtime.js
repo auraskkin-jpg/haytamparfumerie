@@ -226,9 +226,39 @@
     }
   }
 
+  function contentPagePath() {
+    let path = window.location.pathname.replace(/^\/+/, "");
+    if (!path || path.endsWith("/")) path += "index.html";
+    else if (!/\.[a-z0-9]+$/i.test(path)) path += ".html";
+    return path;
+  }
+
+  async function applySiteContent() {
+    if (!document.querySelector("[data-cms-text], [data-cms-image]")) return;
+    try {
+      const response = await fetch(`/api/cms/content?page=${encodeURIComponent(contentPagePath())}`, { credentials: "same-origin" });
+      if (!response.ok) return;
+      const content = await response.json();
+      document.querySelectorAll("[data-cms-text]").forEach((element) => {
+        const value = content.texts[element.dataset.cmsText];
+        if (value) element.textContent = value;
+      });
+      document.querySelectorAll("[data-cms-image]").forEach((element) => {
+        const value = content.images[element.dataset.cmsImage];
+        if (!value) return;
+        element.classList.add("cms-filled");
+        element.style.backgroundImage = `url("${value}")`;
+        element.textContent = "";
+      });
+    } catch {
+      // Keep the original placeholders if the backend is unavailable.
+    }
+  }
+
   function renderStyles() {
     const style = document.createElement("style");
     style.textContent = `
+      .template-image-placeholder.cms-filled{background-size:cover;background-position:center;background-repeat:no-repeat;border:0;color:transparent;font-size:0}
       .local-cart-count{position:absolute;top:0;right:0;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:50%;background:#c64f67;color:#fff;font:700 11px/1 sans-serif}
       .local-cart-message{position:fixed;right:20px;bottom:20px;z-index:2000;padding:12px 18px;background:#292421;color:#fff;font:14px/1.4 sans-serif;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none}
       .local-cart-message.is-visible{opacity:1;transform:translateY(0)}
@@ -433,6 +463,7 @@
     setCartCount(cart);
     updateCartPage();
     loadBackendProducts();
+    applySiteContent();
     showAnalyticsConsent();
     addAnalyticsPreferencesLink();
   });

@@ -1002,6 +1002,86 @@ async fn delete_product(State(state): State<AppState>, Path(slug): Path<String>,
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[derive(Deserialize)]
+struct ContentQuery {
+    page: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ContentInput {
+    key: String,
+    value: String,
+}
+
+#[derive(Serialize)]
+struct SiteContent {
+    texts: HashMap<String, String>,
+    images: HashMap<String, String>,
+}
+
+fn content_kind(key: &str) -> Option<&'static str> {
+    if key.len() == 14 && key.starts_with("t:") && key[2..].chars().all(|character| character.is_ascii_hexdigit()) {
+        return Some("text");
+    }
+    let (page, index) = key.split_once('#')?;
+    let page_ok = !page.is_empty()
+        && page.len() <= 100
+        && !page.contains("..")
+        && page.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '/' | '.' | '-' | '_'));
+    let index_ok = !index.is_empty() && index.len() <= 4 && index.chars().all(|character| character.is_ascii_digit());
+    (page_ok && index_ok).then_some("image")
+}
+
+async fn site_content(State(state): State<AppState>, Query(query): Query<ContentQuery>) -> ApiResult<Json<SiteContent>> {
+    let page = query.page.unwrap_or_default();
+    let rows = sqlx::query_as::<_, (String, String, String)>("SELECT key, kind, value FROM site_content WHERE kind = 'text' OR (kind = 'image' AND page = ?)")
+        .bind(&page)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load site content"))?;
+    let mut content = SiteContent { texts: HashMap::new(), images: HashMap::new() };
+    for (key, kind, value) in rows {
+        if kind == "text" {
+            content.texts.insert(key, value);
+        } else {
+            content.images.insert(key, value);
+        }
+    }
+    Ok(Json(content))
+}
+
+async fn update_site_content(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<ContentInput>) -> ApiResult<Json<serde_json::Value>> {
+    check_origin(&headers)?;
+    require_admin(&state, &headers).await?;
+    let kind = content_kind(&input.key).ok_or(ApiError(StatusCode::BAD_REQUEST, "Unknown content item"))?;
+    let value = input.value.trim().to_owned();
+    if kind == "text" && value.chars().count() > 2000 {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Text must be 2000 characters or fewer"));
+    }
+    if kind == "image" && !value.is_empty() && (!value.starts_with("/assets/products/") || value.contains("..") || value.len() > 240) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Image path is invalid"));
+    }
+    if value.is_empty() {
+        sqlx::query("DELETE FROM site_content WHERE key = ?")
+            .bind(&input.key)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not reset content"))?;
+    } else {
+        let page = input.key.split_once('#').map(|(page, _)| page.to_owned()).unwrap_or_default();
+        sqlx::query("INSERT INTO site_content (key, kind, page, value, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+            .bind(&input.key)
+            .bind(kind)
+            .bind(page)
+            .bind(value)
+            .bind(now())
+            .execute(&state.pool)
+            .await
+            .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not save content"))?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 fn valid_analytics_path(path: &str) -> bool {
     path.starts_with('/')
         && !path.starts_with("//")
@@ -1288,6 +1368,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/products", get(list_products))
         .route("/api/products/{slug}", get(get_product))
         .route("/api/analytics/events", post(record_analytics_event))
+        .route("/api/cms/content", get(site_content))
+        .route("/api/panel/content", put(update_site_content))
         .route("/api/panel/products", get(admin_products).post(create_product))
         .route("/api/panel/products/{slug}", put(update_product).delete(delete_product))
         .route("/api/panel/analytics", get(admin_analytics))
@@ -1368,6 +1450,17 @@ mod tests {
         assert!(!is_app_page("/index.html"));
         assert!(!APP_CSP.contains("script-src 'self' 'unsafe-inline'"));
         assert!(STOREFRONT_CSP.contains("script-src 'self' 'unsafe-inline'"));
+    }
+
+    #[test]
+    fn content_keys_are_validated() {
+        assert_eq!(content_kind("t:0123456789ab"), Some("text"));
+        assert_eq!(content_kind("index.html#12"), Some("image"));
+        assert_eq!(content_kind("pages/about-us.html#3"), Some("image"));
+        assert_eq!(content_kind("../etc#1"), None);
+        assert_eq!(content_kind("t:zz"), None);
+        assert_eq!(content_kind("index.html#"), None);
+        assert_eq!(content_kind("index.html#1x"), None);
     }
 
     #[test]

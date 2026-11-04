@@ -58,6 +58,23 @@
           </div>
         </div>
       </section>
+      <section class="admin-section site-content-section" aria-labelledby="content-title">
+        <div class="section-title"><div><p class="eyebrow">Site</p><h2 id="content-title">Contenu du site</h2></div></div>
+        <p class="field-help">Modifie les textes et les photos des pages du site (accueil, panier, pages, politiques, blog). Les cartes produit se gèrent dans la section Catalogue ci-dessous.</p>
+        <div class="content-tabs" role="tablist">
+          <button id="tab-texts" class="button button-light" type="button" role="tab" aria-selected="true">Textes</button>
+          <button id="tab-images" class="button button-light" type="button" role="tab" aria-selected="false">Photos</button>
+        </div>
+        <div id="content-texts-panel">
+          <label>Rechercher<input id="text-filter" type="search" placeholder="Mot ou phrase"></label>
+          <div id="text-list" class="content-list"></div>
+        </div>
+        <div id="content-images-panel" hidden>
+          <label>Page<select id="image-page"></select></label>
+          <div id="image-list" class="content-list"></div>
+        </div>
+        <p id="content-message" class="field-help" aria-live="polite"></p>
+      </section>
       <div class="admin-layout">
         <section class="admin-section product-editor">
           <div class="section-title"><h2 id="editor-title">Ajouter un produit</h2><button id="cancel-edit" class="text-button" type="button" hidden>Annuler la modification</button></div>

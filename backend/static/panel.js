@@ -285,6 +285,232 @@ document.querySelector('#product-form input[name="image"]')?.addEventListener("c
   preview.hidden = false;
 });
 
+const contentMessage = document.querySelector("#content-message");
+const pageNames = {
+  "index.html": "Accueil",
+  "cart.html": "Panier",
+  "pages/about-us.html": "À propos",
+  "pages/contact.html": "Contact",
+  "pages/faq.html": "FAQ",
+  "pages/marques-liste-a-z.html": "Marques (A à Z)",
+  "pages/social-media.html": "Réseaux sociaux",
+  "policies/privacy-policy.html": "Politique de confidentialité",
+  "policies/refund-policy.html": "Politique de remboursement",
+  "policies/terms-of-service.html": "Conditions d'utilisation",
+  "blogs/news.html": "Blog",
+};
+let siteSlots = { texts: [], images: [] };
+let siteOverrides = { texts: {}, images: {} };
+let imagePage = "";
+
+function setContentMessage(text, state = "") {
+  contentMessage.textContent = text;
+  contentMessage.dataset.state = state;
+}
+
+function pageLabel(page) {
+  return pageNames[page] || page;
+}
+
+async function saveContent(key, value) {
+  await api("/api/panel/content", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+}
+
+async function loadSiteOverrides() {
+  siteOverrides = await api(`/api/cms/content?page=${encodeURIComponent(imagePage)}`);
+}
+
+function renderTextRows() {
+  const list = document.querySelector("#text-list");
+  const filter = document.querySelector("#text-filter").value.trim().toLowerCase();
+  const matches = siteSlots.texts.filter((item) => {
+    const current = siteOverrides.texts[item.key] ?? item.default;
+    return !filter || current.toLowerCase().includes(filter) || item.default.toLowerCase().includes(filter);
+  });
+  list.replaceChildren();
+  if (!matches.length) {
+    const empty = document.createElement("p");
+    empty.className = "field-help";
+    empty.textContent = "Aucun texte ne correspond à la recherche.";
+    list.append(empty);
+    return;
+  }
+  for (const item of matches) {
+    const row = document.createElement("article");
+    row.className = "content-row";
+    const textarea = document.createElement("textarea");
+    textarea.rows = Math.min(6, Math.max(2, Math.ceil(item.default.length / 90)));
+    textarea.value = siteOverrides.texts[item.key] ?? item.default;
+    const hint = document.createElement("p");
+    hint.className = "content-hint";
+    hint.textContent = `Texte d'origine : ${item.default.slice(0, 140)}${item.default.length > 140 ? "…" : ""} · ${item.pages.map(pageLabel).join(", ")}`;
+    const actions = document.createElement("div");
+    actions.className = "content-actions";
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "button button-dark";
+    save.textContent = "Enregistrer";
+    save.addEventListener("click", async () => {
+      const value = textarea.value.trim();
+      save.disabled = true;
+      try {
+        await saveContent(item.key, value === item.default ? "" : value);
+        if (value && value !== item.default) siteOverrides.texts[item.key] = value;
+        else delete siteOverrides.texts[item.key];
+        setContentMessage("Texte enregistré. Il apparaît sur le site après rechargement de la page.", "success");
+      } catch (error) {
+        setContentMessage(error.message, "error");
+      } finally {
+        save.disabled = false;
+      }
+    });
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "text-button";
+    reset.textContent = "Remettre le texte d'origine";
+    reset.addEventListener("click", async () => {
+      try {
+        await saveContent(item.key, "");
+        delete siteOverrides.texts[item.key];
+        textarea.value = item.default;
+        setContentMessage("Texte d'origine rétabli.", "success");
+      } catch (error) {
+        setContentMessage(error.message, "error");
+      }
+    });
+    actions.append(save, reset);
+    row.append(textarea, hint, actions);
+    list.append(row);
+  }
+}
+
+function renderImageRows() {
+  const list = document.querySelector("#image-list");
+  list.replaceChildren();
+  const items = siteSlots.images.filter((item) => item.page === imagePage);
+  for (const item of items) {
+    const row = document.createElement("article");
+    row.className = "content-row content-image-row";
+    const preview = document.createElement("div");
+    preview.className = "content-image-preview";
+    const current = siteOverrides.images[item.key];
+    if (current) {
+      const image = document.createElement("img");
+      image.src = current;
+      image.alt = "";
+      preview.append(image);
+    } else {
+      preview.textContent = "Pas encore de photo";
+    }
+    const title = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = item.name || "Photo";
+    const hint = document.createElement("p");
+    hint.className = "content-hint";
+    hint.textContent = `Emplacement n° ${item.index} · JPG, PNG ou WebP, 5 Mo maximum`;
+    title.append(name, hint);
+    const actions = document.createElement("div");
+    actions.className = "content-actions";
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    input.hidden = true;
+    input.addEventListener("change", () => uploadSiteImage(item, input.files[0]));
+    const choose = document.createElement("button");
+    choose.type = "button";
+    choose.className = "button button-dark";
+    choose.textContent = current ? "Changer la photo" : "Ajouter une photo";
+    choose.addEventListener("click", () => input.click());
+    actions.append(choose, input);
+    if (current) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "text-button text-danger";
+      remove.textContent = "Retirer la photo";
+      remove.addEventListener("click", () => removeSiteImage(item));
+      actions.append(remove);
+    }
+    row.append(preview, title, actions);
+    list.append(row);
+  }
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "field-help";
+    empty.textContent = "Aucune photo modifiable sur cette page.";
+    list.append(empty);
+  }
+}
+
+async function uploadSiteImage(item, file) {
+  if (!file) return;
+  setContentMessage("Envoi de la photo…");
+  try {
+    const body = new FormData();
+    body.append("image", file);
+    const result = await api("/api/panel/upload", { method: "POST", body });
+    await saveContent(item.key, result.imagePath);
+    siteOverrides.images[item.key] = result.imagePath;
+    renderImageRows();
+    setContentMessage("Photo enregistrée. Ouvre la page du site et recharge-la pour la voir.", "success");
+  } catch (error) {
+    setContentMessage(error.message, "error");
+  }
+}
+
+async function removeSiteImage(item) {
+  if (!window.confirm("Retirer cette photo et remettre la case vide ?")) return;
+  try {
+    await saveContent(item.key, "");
+    delete siteOverrides.images[item.key];
+    renderImageRows();
+    setContentMessage("Photo retirée.", "success");
+  } catch (error) {
+    setContentMessage(error.message, "error");
+  }
+}
+
+async function loadSiteContent() {
+  const response = await fetch("/cms-slots.json", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("Impossible de charger la liste des éléments du site.");
+  siteSlots = await response.json();
+  const select = document.querySelector("#image-page");
+  const pages = [...new Set(siteSlots.images.map((item) => item.page))];
+  select.replaceChildren(...pages.map((page) => {
+    const option = document.createElement("option");
+    option.value = page;
+    option.textContent = pageLabel(page);
+    return option;
+  }));
+  imagePage = select.value;
+  await loadSiteOverrides();
+  renderTextRows();
+  renderImageRows();
+}
+
+document.querySelector("#text-filter")?.addEventListener("input", renderTextRows);
+document.querySelector("#image-page")?.addEventListener("change", async (event) => {
+  imagePage = event.target.value;
+  try {
+    await loadSiteOverrides();
+    renderImageRows();
+  } catch (error) {
+    setContentMessage(error.message, "error");
+  }
+});
+function showContentTab(name) {
+  const isTexts = name === "texts";
+  document.querySelector("#content-texts-panel").hidden = !isTexts;
+  document.querySelector("#content-images-panel").hidden = isTexts;
+  document.querySelector("#tab-texts").setAttribute("aria-selected", String(isTexts));
+  document.querySelector("#tab-images").setAttribute("aria-selected", String(!isTexts));
+}
+document.querySelector("#tab-texts")?.addEventListener("click", () => showContentTab("texts"));
+document.querySelector("#tab-images")?.addEventListener("click", () => showContentTab("images"));
+
 api("/api/auth/session").then(async (session) => {
   if (!session.authenticated || !["admin", "manager"].includes(session.role)) {
     window.location.assign("/ikrame");
@@ -293,7 +519,7 @@ api("/api/auth/session").then(async (session) => {
   document.querySelector("#admin-email").textContent = session.email;
   const isOwner = session.role === "admin";
   document.querySelectorAll(".owner-only").forEach((section) => { section.hidden = !isOwner; });
-  const tasks = [loadProducts()];
+  const tasks = [loadProducts(), loadSiteContent().catch((error) => setContentMessage(error.message, "error"))];
   if (isOwner) tasks.push(loadAnalytics(), loadManagers());
   await Promise.all(tasks);
 }).catch((error) => {
