@@ -1,0 +1,6 @@
+backend/target/
+backend/.env
+backend/store.db
+backend/store.db-*
+__pycache__/
+*.pyc

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Connexion | Aura Skin</title>
+    <link rel="stylesheet" href="/ikrame/panel.css">
+  </head>
+  <body class="auth-page">
+    <main class="auth-shell">
+      <a class="auth-brand" href="/"><img src="/assets/aura-skin-logo.svg" alt="Aura Skin by Chayy"></a>
+      <section class="auth-panel">
+        <p class="eyebrow">Espace boutique</p>
+        <h1>Connexion</h1>
+        <form id="login-form" class="form-stack">
+          <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+          <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required minlength="12"></label>
+          <button class="button button-dark" type="submit">Se connecter</button>
+          <p class="form-message" role="status" aria-live="polite"></p>
+        </form>
+        <p class="auth-switch">Pas encore de compte ? <a href="/register">Créer un compte</a></p>
+        <div class="social-login" aria-label="Connexion avec un fournisseur externe">
+          <p class="social-login-title">Ou continuer avec</p>
+          <a id="google-login" class="social-login-button" href="/auth/google" hidden>Continuer avec Google</a>
+          <a id="facebook-login" class="social-login-button" href="/auth/facebook" hidden>Continuer avec Facebook</a>
+          <p id="social-provider-note" class="auth-provider-note" aria-live="polite"></p>
+          <p class="auth-provider-note">Instagram ne propose pas de connexion grand public équivalente; son API de login concerne les comptes professionnels.</p>
+        </div>
+      </section>
+    </main>
+    <script src="/auth.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Administration | Aura Skin</title>
+    <link rel="stylesheet" href="/ikrame/panel.css">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <a class="admin-brand" href="/"><img src="/assets/aura-skin-logo.svg" alt="Aura Skin by Chayy"></a>
+      <div class="admin-tools"><span id="admin-email"></span><button id="logout-button" class="button button-light" type="button">Déconnexion</button></div>
+    </header>
+    <main class="admin-main">
+      <div class="admin-title-row">
+        <div><p class="eyebrow">Catalogue</p><h1>Produits</h1></div>
+        <p id="product-count" class="product-count"></p>
+      </div>
+      <section class="analytics-dashboard admin-section owner-only" aria-labelledby="analytics-title" hidden>
+        <div class="section-title">
+          <div><p class="eyebrow">Audience</p><h2 id="analytics-title">Analytique anonyme</h2></div>
+          <label class="range-select">Période<select id="analytics-days" aria-label="Période analytique">
+            <option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option>
+          </select></label>
+        </div>
+        <p class="analytics-note">Statistiques limitées aux visiteurs ayant accepté le suivi anonyme.</p>
+        <div class="analytics-kpis">
+          <article class="analytics-kpi"><span>Visiteurs estimés</span><strong id="metric-visitors">—</strong></article>
+          <article class="analytics-kpi"><span>Pages vues</span><strong id="metric-page-views">—</strong></article>
+          <article class="analytics-kpi"><span>Clics sur les liens</span><strong id="metric-link-clicks">—</strong></article>
+          <article class="analytics-kpi"><span>Visiteurs ayant défilé à 75 %</span><strong id="metric-scroll-75">—</strong></article>
+        </div>
+        <div class="admin-export-actions owner-only" hidden>
+          <a class="button button-light" href="/api/panel/export/products.csv">Exporter les produits CSV</a>
+          <a class="button button-light" href="/api/panel/export/customer-emails.csv">Exporter les emails clients CSV</a>
+          <p class="field-help">Le fichier emails est compatible avec l’import Google/Gmail Contacts.</p>
+        </div>
+        <div class="analytics-breakdowns">
+          <section><h3>Pages consultées</h3><div id="analytics-pages" class="analytics-list"></div></section>
+          <section><h3>Liens les plus cliqués</h3><div id="analytics-links" class="analytics-list"></div></section>
+          <section><h3>Profondeur de défilement</h3><div id="analytics-scroll" class="analytics-list"></div></section>
+        </div>
+        <p id="analytics-message" class="field-help" aria-live="polite"></p>
+      </section>
+      <section class="manager-access admin-section owner-only" hidden aria-labelledby="manager-title">
+        <div class="section-title"><div><p class="eyebrow">Équipe</p><h2 id="manager-title">Gestionnaires catalogue</h2></div></div>
+        <div class="manager-layout">
+          <form id="manager-form" class="form-stack">
+            <label>Email du gestionnaire<input name="email" type="email" autocomplete="off" required maxlength="254"></label>
+            <label>Mot de passe temporaire<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="256"><span class="field-help">12 caractères minimum. Transmets-le au gestionnaire de façon sécurisée.</span></label>
+            <p class="form-message" role="status" aria-live="polite"></p>
+            <button class="button button-dark" type="submit">Créer un accès gestionnaire</button>
+          </form>
+          <div>
+            <h3>Accès existants</h3>
+            <div id="manager-list" class="manager-list"></div>
+            <p id="manager-message" class="field-help" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+      <div class="admin-layout">
+        <section class="admin-section product-editor">
+          <div class="section-title"><h2 id="editor-title">Ajouter un produit</h2><button id="cancel-edit" class="text-button" type="button" hidden>Annuler la modification</button></div>
+          <form id="product-form" class="form-stack">
+            <input type="hidden" name="editing_slug">
+            <input type="hidden" name="slug">
+            <label>Nom du produit<input name="name" required maxlength="160"></label>
+            <div class="form-row">
+              <label>Marque<input name="brand" maxlength="120"></label>
+              <label>Prix (DH)<input name="price" type="number" min="0" max="100000000" step="0.01" required></label>
+            </div>
+            <label>Catégorie<select name="category" required>
+              <option value="nouveaux-produits">Nouveautés</option>
+              <option value="parfums-1">Parfums</option>
+              <option value="visage">Visage</option>
+              <option value="maquillage">Maquillage</option>
+              <option value="soins-capillaires">Cheveux</option>
+              <option value="corps">Corps</option>
+              <option value="soins-dentaires">Soins dentaires</option>
+            </select></label>
+            <label>Description<textarea name="description" rows="5" maxlength="10000"></textarea></label>
+            <label>Photo du produit<input name="image" type="file" accept="image/jpeg,image/png,image/webp"><span class="field-help">JPG, PNG ou WebP, 5 Mo maximum.</span></label>
+            <div class="image-preview" id="image-preview" hidden></div>
+            <p class="form-message" role="status" aria-live="polite"></p>
+            <button class="button button-dark" type="submit">Enregistrer le produit</button>
+          </form>
+        </section>
+        <section class="admin-section product-list-section">
+          <div class="section-title"><h2>Catalogue en ligne</h2><button id="refresh-products" class="text-button" type="button">Actualiser</button></div>
+          <div id="product-list" class="product-list" aria-live="polite"></div>
+          <p id="list-message" class="field-help"></p>
+        </section>
+      </div>
+    </main>
+    <script src="/ikrame/panel.js" defer></script>
+  </body>
+</html>

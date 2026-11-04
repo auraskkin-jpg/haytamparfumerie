@@ -1,0 +1,5 @@
+/target/
+/store.db
+/store.db-shm
+/store.db-wal
+/.env

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: aura-skin
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: frankfurt
+    numInstances: 1
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+    disk:
+      name: aura-data
+      mountPath: /var/data
+      sizeGB: 1

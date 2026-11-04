@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Produit | Aura Skin</title>
+    <link rel="stylesheet" href="/boutique-brand.css">
+    <link rel="stylesheet" href="/product.css">
+  </head>
+  <body>
+    <header class="dynamic-header">
+      <a href="/" aria-label="Accueil Aura Skin"><img src="/assets/aura-skin-logo.svg" alt="Aura Skin by Chayy"></a>
+      <a class="cart-link" href="/cart.html">Panier</a>
+    </header>
+    <main class="dynamic-product">
+      <a class="back-link" href="/">Retour à la boutique</a>
+      <section class="dynamic-product-layout">
+        <div class="dynamic-product-image"><span class="template-image-placeholder" id="dynamic-product-image">Photo à ajouter</span></div>
+        <div class="dynamic-product-info">
+          <p class="eyebrow" id="dynamic-product-brand">Marque à ajouter</p>
+          <h1 class="product__title"><span id="dynamic-product-name">Nom du produit</span></h1>
+          <p class="price--large"><span class="price-item--regular" id="dynamic-product-price">Prix à ajouter</span></p>
+          <div class="product__description" id="dynamic-product-description">Description à ajouter</div>
+          <form id="CodAddToCartFormTop" class="cod-atc-form-top">
+            <label class="quantity-label">Quantité<input name="quantity" type="number" min="1" max="99" value="1"></label>
+            <button class="button button-dark" id="CodAddToCartTop" type="submit">Ajouter au panier</button>
+          </form>
+        </div>
+      </section>
+    </main>
+    <script src="/boutique-runtime.js" defer></script>
+  </body>
+</html>

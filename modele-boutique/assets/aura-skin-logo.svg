@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="logo-title logo-description">
+  <title id="logo-title">Aura Skin by Chayy</title>
+  <desc id="logo-description">Aura Skin, by Chayy</desc>
+  <path fill="#F9DFDA" d="M236 304c-46-50-36-134 7-210C284 25 359 4 471 12c111 8 220 32 284 92 55 52 79 120 58 174-23 59-85 78-164 76-91-2-176-4-270 4-70 6-115-12-143-54z"/>
+  <text x="600" y="191" fill="#111" text-anchor="middle" font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="136" font-weight="400">AURA SKIN</text>
+  <text x="600" y="258" fill="#111" text-anchor="middle" font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="42" font-weight="400">— BY CHAYY —</text>
+</svg>

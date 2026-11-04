@@ -1,0 +1,47 @@
+.hp-bslider__progress-track {
+  position: absolute;
+  z-index: 3;
+  right: max(8%, 24px);
+  bottom: 46px;
+  left: max(8%, 24px);
+  height: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .36);
+  pointer-events: none;
+}
+
+.hp-bslider__progress-fill {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.hp-bslider__manual-btn[aria-current="true"] {
+  background: #fff;
+}
+
+.hp-bslider__manual-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+
+@media (max-width: 768px) {
+  .hp-bslider__progress-track {
+    right: 24px;
+    bottom: 36px;
+    left: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-bslider__track {
+    transition: none;
+  }
+
+  .hp-bslider__progress-track {
+    display: none;
+  }
+}

@@ -1,0 +1,14 @@
+# Only what the image needs: the backend sources and the built storefront.
+*
+!backend/
+!modele-boutique/
+!Dockerfile
+!docker-entrypoint.sh
+
+backend/target/
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/store.db*
+**/__pycache__/
+**/*.pyc

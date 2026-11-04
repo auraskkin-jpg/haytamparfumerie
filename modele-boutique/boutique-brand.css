@@ -1,0 +1,61 @@
+:root {
+  --accent-1: #f3d4d0 !important;
+  --accent-2: #fff4f1 !important;
+  --cod-pink: #f3d4d0 !important;
+  --cod-beige: #fff4f1 !important;
+  --ink: #171313 !important;
+  --glass-bg: rgba(255, 255, 255, .86) !important;
+  --glass-stroke: rgba(216, 170, 164, .42) !important;
+  --glass-shadow: 0 12px 32px rgba(67, 43, 40, .12) !important;
+}
+
+.announcement-bar-section .utility-bar {
+  background: linear-gradient(90deg, #fff, #fff4f1) !important;
+}
+
+.header__heading-logo-wrapper {
+  width: min(190px, 32vw);
+  display: grid;
+  place-items: center;
+}
+
+.header__heading-logo-wrapper img {
+  display: block;
+  max-width: 100%;
+  max-height: 62px;
+}
+
+.bd-logo {
+  background: #fff !important;
+  border-color: rgba(216, 170, 164, .35) !important;
+}
+
+.hpf-logo-img {
+  display: block;
+  object-fit: contain;
+}
+
+.faq-online-note {
+  margin: 14px 0 22px;
+  padding: 14px 16px;
+  border-left: 3px solid #e4c4bf;
+  background: #fff7f5;
+  color: #594b49;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.hp-social-icon svg, .bd-social svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+.hp-social-icon { color: #24201f; }
+.hp-social-icon:hover { color: #8e625d; }
+
+@media (max-width: 600px) {
+  .header__heading-logo-wrapper {
+    width: min(155px, 38vw);
+  }
+}
