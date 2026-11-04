@@ -42,6 +42,7 @@ CMS_TEXT_TAGS = {"h1", "h2", "h3", "h4", "p", "span", "a"}
 CMS_BLOCKED_CONTEXT = ("card", "product", "cod-", "drawer", "cart", "menu", "facet", "collection")
 CMS_TEXTS: dict[str, dict] = {}
 CMS_IMAGES: list[dict] = []
+CMS_NAV: dict[str, dict] = {}
 BLANK_TARGET_LINK = re.compile(r'<a\b(?=[^>]*\btarget="_blank")(?![^>]*\brel=)[^>]*', re.I)
 BLOCKED_SCRIPT_FILES = (
     "cart.js", "cart-notification.js", "product-form.js", "product-info.js",
@@ -130,12 +131,43 @@ def cms_text_key(text: str) -> str:
     return "t:" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
 
+def in_nav_menu(node: dict) -> bool:
+    return any(token == "bd-nav" for item in [node, *ancestors(node)] for token in classes(item))
+
+
+def nav_item(node: dict, source: str) -> tuple[str, str, str]:
+    href = node["attrs"].get("href") or ""
+    text = plain_text(source[node["open_end"]:node["close_start"]])
+    group = ""
+    for ancestor in ancestors(node):
+        if ancestor["tag"] == "li" and "bd-dropdown" in classes(ancestor):
+            match = re.search(r"<button[^>]*>(.*?)</button>", source[ancestor["open_end"]:ancestor["close_start"]], flags=re.S | re.I)
+            group = plain_text(match.group(1)) if match else ""
+            break
+    key = "nav:" + hashlib.sha1(f"{href}|{text}".encode("utf-8")).hexdigest()[:12]
+    name = f"{group} › {text}" if group and group != text else text
+    return key, name, text
+
+
+def add_tag_attribute(replacements: list, node: dict, name: str, value: str) -> None:
+    for index, (start, end, text) in enumerate(replacements):
+        if start == node["start"] and end == node["open_end"]:
+            if text.endswith(">"):
+                replacements[index] = (start, end, replace_attribute(text, name, value))
+            return
+    replacements.append((node["start"], node["open_end"], replace_attribute(node["raw"], name, value)))
+
+
 def write_cms_slots() -> None:
     texts = [
         {"key": key, "default": value["default"], "pages": sorted(value["pages"])}
         for key, value in sorted(CMS_TEXTS.items(), key=lambda item: item[1]["default"].lower())
     ]
-    payload = {"texts": texts, "images": CMS_IMAGES}
+    nav_images = [
+        {"key": key, "page": "menu", "label": "Menu", "name": value["name"], "index": index}
+        for index, (key, value) in enumerate(CMS_NAV.items(), start=1)
+    ]
+    payload = {"texts": texts, "images": CMS_IMAGES + nav_images}
     (OUTPUT / "cms-slots.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
@@ -451,7 +483,7 @@ def transform_html(path: Path) -> None:
                 cms_key = cms_text_key(text)
                 entry = CMS_TEXTS.setdefault(cms_key, {"default": text, "pages": set()})
                 entry["pages"].add(relative_page)
-                replacements.append((node["start"], node["open_end"], replace_attribute(raw, "data-cms-text", cms_key)))
+                add_tag_attribute(replacements, node, "data-cms-text", cms_key)
 
         if tag == "form":
             disabled_form = replace_attribute(raw, "action", "#")
@@ -504,6 +536,13 @@ def transform_html(path: Path) -> None:
     closing_head = re.search(r"</head\s*>", source, flags=re.I)
     if closing_head:
         replacements.append((closing_head.start(), closing_head.start(), PLACEHOLDER_STYLE))
+
+    for node in scanner.nodes:
+        if node["tag"] in {"a", "button"} and in_nav_menu(node):
+            nav_key, nav_name, nav_text = nav_item(node, source)
+            if nav_text:
+                CMS_NAV.setdefault(nav_key, {"name": nav_name})
+                add_tag_attribute(replacements, node, "data-cms-image", nav_key)
 
     replacements.sort(key=lambda item: (item[0], -(item[1] - item[0])))
     filtered: list[tuple[int, int, str]] = []
@@ -653,6 +692,7 @@ def disable_data_loaders() -> None:
 def main() -> None:
     CMS_TEXTS.clear()
     CMS_IMAGES.clear()
+    CMS_NAV.clear()
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     shutil.copytree(ROOT, OUTPUT, ignore=ignore_copy)

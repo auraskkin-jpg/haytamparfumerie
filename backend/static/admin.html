@@ -13,10 +13,32 @@
     </header>
     <main class="admin-main">
       <div class="admin-title-row">
-        <div><p class="eyebrow">Catalogue</p><h1>Produits</h1></div>
-        <p id="product-count" class="product-count"></p>
+        <div><p class="eyebrow">Administration</p><h1>Tableau de bord</h1></div>
       </div>
-      <section class="analytics-dashboard admin-section owner-only" aria-labelledby="analytics-title" hidden>
+      <nav class="admin-jump" aria-label="Sections du tableau de bord">
+        <a href="#contenu">1. Contenu du site</a>
+        <a href="#statistiques" class="owner-only" hidden>Statistiques</a>
+        <a href="#equipe" class="owner-only" hidden>Gestionnaires</a>
+        <a href="#catalogue">Produits</a>
+      </nav>
+      <section id="contenu" class="admin-section site-content-section" aria-labelledby="content-title">
+        <div class="section-title"><div><p class="eyebrow">Site</p><h2 id="content-title">1. Contenu du site</h2></div></div>
+        <p class="field-help">Modifie les textes et les photos des pages du site (accueil, panier, pages, politiques, blog). Les cartes produit se gèrent dans la section Catalogue ci-dessous.</p>
+        <div class="content-tabs" role="tablist">
+          <button id="tab-texts" class="button button-light" type="button" role="tab" aria-selected="true">Textes</button>
+          <button id="tab-images" class="button button-light" type="button" role="tab" aria-selected="false">Photos</button>
+        </div>
+        <div id="content-texts-panel">
+          <label>Rechercher<input id="text-filter" type="search" placeholder="Mot ou phrase"></label>
+          <div id="text-list" class="content-list"></div>
+        </div>
+        <div id="content-images-panel" hidden>
+          <label>Page<select id="image-page"></select></label>
+          <div id="image-list" class="content-list"></div>
+        </div>
+        <p id="content-message" class="field-help" aria-live="polite"></p>
+      </section>
+      <section id="statistiques" class="analytics-dashboard admin-section owner-only" aria-labelledby="analytics-title" hidden>
         <div class="section-title">
           <div><p class="eyebrow">Audience</p><h2 id="analytics-title">Analytique anonyme</h2></div>
           <label class="range-select">Période<select id="analytics-days" aria-label="Période analytique">
@@ -42,7 +64,7 @@
         </div>
         <p id="analytics-message" class="field-help" aria-live="polite"></p>
       </section>
-      <section class="manager-access admin-section owner-only" hidden aria-labelledby="manager-title">
+      <section id="equipe" class="manager-access admin-section owner-only" hidden aria-labelledby="manager-title">
         <div class="section-title"><div><p class="eyebrow">Équipe</p><h2 id="manager-title">Gestionnaires catalogue</h2></div></div>
         <div class="manager-layout">
           <form id="manager-form" class="form-stack">
@@ -58,24 +80,7 @@
           </div>
         </div>
       </section>
-      <section class="admin-section site-content-section" aria-labelledby="content-title">
-        <div class="section-title"><div><p class="eyebrow">Site</p><h2 id="content-title">Contenu du site</h2></div></div>
-        <p class="field-help">Modifie les textes et les photos des pages du site (accueil, panier, pages, politiques, blog). Les cartes produit se gèrent dans la section Catalogue ci-dessous.</p>
-        <div class="content-tabs" role="tablist">
-          <button id="tab-texts" class="button button-light" type="button" role="tab" aria-selected="true">Textes</button>
-          <button id="tab-images" class="button button-light" type="button" role="tab" aria-selected="false">Photos</button>
-        </div>
-        <div id="content-texts-panel">
-          <label>Rechercher<input id="text-filter" type="search" placeholder="Mot ou phrase"></label>
-          <div id="text-list" class="content-list"></div>
-        </div>
-        <div id="content-images-panel" hidden>
-          <label>Page<select id="image-page"></select></label>
-          <div id="image-list" class="content-list"></div>
-        </div>
-        <p id="content-message" class="field-help" aria-live="polite"></p>
-      </section>
-      <div class="admin-layout">
+      <div id="catalogue" class="admin-layout">
         <section class="admin-section product-editor">
           <div class="section-title"><h2 id="editor-title">Ajouter un produit</h2><button id="cancel-edit" class="text-button" type="button" hidden>Annuler la modification</button></div>
           <form id="product-form" class="form-stack">
@@ -103,7 +108,7 @@
           </form>
         </section>
         <section class="admin-section product-list-section">
-          <div class="section-title"><h2>Catalogue en ligne</h2><button id="refresh-products" class="text-button" type="button">Actualiser</button></div>
+          <div class="section-title"><h2>Catalogue en ligne</h2><p id="product-count" class="product-count"></p><button id="refresh-products" class="text-button" type="button">Actualiser</button></div>
           <div id="product-list" class="product-list" aria-live="polite"></div>
           <p id="list-message" class="field-help"></p>
         </section>

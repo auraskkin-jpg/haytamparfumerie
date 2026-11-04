@@ -1023,6 +1023,9 @@ fn content_kind(key: &str) -> Option<&'static str> {
     if key.len() == 14 && key.starts_with("t:") && key[2..].chars().all(|character| character.is_ascii_hexdigit()) {
         return Some("text");
     }
+    if key.len() == 16 && key.starts_with("nav:") && key[4..].chars().all(|character| character.is_ascii_hexdigit()) {
+        return Some("image");
+    }
     let (page, index) = key.split_once('#')?;
     let page_ok = !page.is_empty()
         && page.len() <= 100
@@ -1034,7 +1037,7 @@ fn content_kind(key: &str) -> Option<&'static str> {
 
 async fn site_content(State(state): State<AppState>, Query(query): Query<ContentQuery>) -> ApiResult<Json<SiteContent>> {
     let page = query.page.unwrap_or_default();
-    let rows = sqlx::query_as::<_, (String, String, String)>("SELECT key, kind, value FROM site_content WHERE kind = 'text' OR (kind = 'image' AND page = ?)")
+    let rows = sqlx::query_as::<_, (String, String, String)>("SELECT key, kind, value FROM site_content WHERE kind = 'text' OR (kind = 'image' AND page IN (?, 'menu'))")
         .bind(&page)
         .fetch_all(&state.pool)
         .await
@@ -1068,7 +1071,11 @@ async fn update_site_content(State(state): State<AppState>, headers: HeaderMap, 
             .await
             .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not reset content"))?;
     } else {
-        let page = input.key.split_once('#').map(|(page, _)| page.to_owned()).unwrap_or_default();
+        let page = if input.key.starts_with("nav:") {
+            "menu".to_owned()
+        } else {
+            input.key.split_once('#').map(|(page, _)| page.to_owned()).unwrap_or_default()
+        };
         sqlx::query("INSERT INTO site_content (key, kind, page, value, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
             .bind(&input.key)
             .bind(kind)
@@ -1461,6 +1468,8 @@ mod tests {
         assert_eq!(content_kind("t:zz"), None);
         assert_eq!(content_kind("index.html#"), None);
         assert_eq!(content_kind("index.html#1x"), None);
+        assert_eq!(content_kind("nav:0123456789ab"), Some("image"));
+        assert_eq!(content_kind("nav:xyz"), None);
     }
 
     #[test]

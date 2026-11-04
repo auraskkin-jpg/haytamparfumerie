@@ -246,6 +246,14 @@
       document.querySelectorAll("[data-cms-image]").forEach((element) => {
         const value = content.images[element.dataset.cmsImage];
         if (!value) return;
+        if (element.matches("a, button")) {
+          const thumb = document.createElement("img");
+          thumb.src = value;
+          thumb.alt = "";
+          thumb.className = "cms-nav-thumb";
+          element.prepend(thumb);
+          return;
+        }
         element.classList.add("cms-filled");
         element.style.backgroundImage = `url("${value}")`;
         element.textContent = "";
@@ -258,6 +266,7 @@
   function renderStyles() {
     const style = document.createElement("style");
     style.textContent = `
+      .cms-nav-thumb{width:26px;height:26px;object-fit:cover;border-radius:50%;margin-right:8px;vertical-align:middle;display:inline-block}
       .template-image-placeholder.cms-filled{background-size:cover;background-position:center;background-repeat:no-repeat;border:0;color:transparent;font-size:0}
       .local-cart-count{position:absolute;top:0;right:0;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:50%;background:#c64f67;color:#fff;font:700 11px/1 sans-serif}
       .local-cart-message{position:fixed;right:20px;bottom:20px;z-index:2000;padding:12px 18px;background:#292421;color:#fff;font:14px/1.4 sans-serif;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none}

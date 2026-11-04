@@ -298,6 +298,7 @@ const pageNames = {
   "policies/refund-policy.html": "Politique de remboursement",
   "policies/terms-of-service.html": "Conditions d'utilisation",
   "blogs/news.html": "Blog",
+  "menu": "Menu de navigation (catégories)",
 };
 let siteSlots = { texts: [], images: [] };
 let siteOverrides = { texts: {}, images: {} };
