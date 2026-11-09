@@ -209,17 +209,40 @@
     price.append(" ", badge);
   }
 
+  function unhideFilled(node) {
+    for (let n = node; n && n !== document.body; n = n.parentElement) {
+      if (n.style.display === "none") n.style.display = "";
+    }
+  }
+
   function fillProductCard(card, product) {
+    // Si le masquage des emplacements vides a déjà eu lieu, on rouvre la carte, sa liste et sa section.
+    const holder = card.closest("li") || card.closest(".product-card-wrapper") || card;
+    holder.style.display = "";
+    const wrapper = card.closest(".product-card-wrapper, .card-wrapper");
+    if (wrapper && wrapper.style.display === "none") wrapper.style.display = "";
+    const list = holder.closest("ul");
+    if (list && list.style.display === "none") list.style.display = "";
+    const block = list ? list.closest(".shopify-section") : null;
+    if (block && block.style.display === "none") block.style.display = "";
     card.querySelectorAll(".card__heading a").forEach((link) => {
       link.href = `/product/${encodeURIComponent(product.slug)}`;
       link.textContent = product.name;
     });
     card.querySelectorAll(".price-item").forEach((price) => {
       price.textContent = money(product.price);
+      unhideFilled(price);
     });
-    card.querySelectorAll(".card__media .template-image-placeholder, .card__media img").forEach((media) => {
-      setProductImage(media, product);
-    });
+    if (product.imagePath) {
+      card.querySelectorAll(".card__media .template-image-placeholder, .card__media img").forEach((media) => {
+        setProductImage(media, product);
+      });
+    } else {
+      // Sans photo : aucun cadre blanc — le carré « ratio » du thème est masqué aussi.
+      card.querySelectorAll(".card__inner, .card__media, .template-image-placeholder").forEach((media) => {
+        media.style.display = "none";
+      });
+    }
     hideStaticBadges(card);
     showProductFlagBadge(card, product);
   }
@@ -228,19 +251,29 @@
     document.title = `${product.name} | Aura Skin`;
     document.querySelectorAll("#dynamic-product-name, .product__title h1, .product__title h2").forEach((title) => {
       title.textContent = product.name;
+      unhideFilled(title);
     });
     document.querySelectorAll("#dynamic-product-brand, .product__text.subtitle").forEach((brand) => {
       brand.textContent = product.brand || "";
+      unhideFilled(brand);
     });
-    document.querySelectorAll("#dynamic-product-price, .price--large .price-item").forEach((price) => {
+    document.querySelectorAll("#dynamic-product-price, .price--large .price-item, .price-item--regular").forEach((price) => {
       price.textContent = money(product.price);
+      unhideFilled(price);
     });
     document.querySelectorAll("#dynamic-product-description, .product__description").forEach((description) => {
       description.textContent = product.description;
+      unhideFilled(description);
     });
-    document.querySelectorAll("#dynamic-product-image, .product__media-item .template-image-placeholder, .product__media img").forEach((image) => {
-      setProductImage(image, product);
-    });
+    if (product.imagePath) {
+      document.querySelectorAll("#dynamic-product-image, .product__media-item .template-image-placeholder, .product__media img").forEach((image) => {
+        setProductImage(image, product);
+      });
+    } else {
+      document.querySelectorAll(".product__media-item, .product__media, #dynamic-product-image").forEach((media) => {
+        media.style.display = "none";
+      });
+    }
     hideStaticBadges(document.querySelector("product-info") || document.body);
     showProductPageFlagBadges(product);
     const codButton = document.querySelector("#CodPopupOpen");
@@ -277,6 +310,9 @@
       if (!products.length) return;
       const cards = [...document.querySelectorAll(".product-card-wrapper")];
       cards.slice(0, products.length).forEach((card, index) => fillProductCard(card, products[index]));
+      cards.slice(products.length)
+        .filter((card) => card.querySelector(".card__heading a")?.textContent.trim() === "Nom du produit")
+        .forEach((card) => { card.style.display = "none"; });
     } catch {
       // Keep the static product placeholders if the local backend is unavailable.
     }
@@ -287,6 +323,141 @@
     if (!path || path.endsWith("/")) path += "index.html";
     else if (!/\.[a-z0-9]+$/i.test(path)) path += ".html";
     return path;
+  }
+
+  function hideEmptyImageSlots() {
+    document.querySelectorAll(".template-image-placeholder:not(.cms-filled)").forEach((slot) => {
+      slot.style.display = "none";
+      const container = slot.closest("li, .product-card-wrapper, .card-wrapper, .slideshow__slide, .hp-bslider__slide, .collection-banner-tile, .hp-banner, .image-content, .media-wrapper");
+      if (container && !container.innerText.trim()) container.style.display = "none";
+    });
+    // Cartes du thème non remplies : « Nom du produit / Prix à ajouter » ne sont que du texte du modèle.
+    document.querySelectorAll(".card__heading").forEach((heading) => {
+      if (heading.textContent.trim() !== "Nom du produit") return;
+      const card = heading.closest("li") || heading.closest(".product-card-wrapper, .card-wrapper");
+      if (card) card.style.display = "none";
+    });
+    document.querySelectorAll(".price").forEach((price) => {
+      if (price.textContent.trim() !== "Prix à ajouter") return;
+      const card = price.closest("li") || price.closest(".product-card-wrapper, .card-wrapper");
+      if (card) card.style.display = "none";
+    });
+    // Sections de diaporama entièrement vides (aucune photo remplie, aucun texte).
+    document.querySelectorAll(".slideshow, .hp-bslider").forEach((section) => {
+      if (section.querySelector(".template-image-placeholder.cms-filled")) return;
+      const placeholders = [...section.querySelectorAll(".template-image-placeholder")];
+      if (!placeholders.length || placeholders.some((slot) => slot.style.display !== "none")) return;
+      if (section.innerText.trim()) return;
+      section.style.display = "none";
+    });
+    // Tout texte du modèle finissant par « à ajouter » disparaît, avec son conteneur si vide à côté.
+    document.querySelectorAll("body *").forEach((node) => {
+      if (node.children.length) return;
+      const text = node.textContent.trim();
+      if (!text || text.length > 90 || !text.endsWith("à ajouter")) return;
+      node.style.display = "none";
+      const parent = node.parentElement;
+      if (parent && parent.textContent.trim() === text) parent.style.display = "none";
+    });
+    // Pages collection : le squelette « boutique » du modèle (filtres, tri, compteurs et
+    // pagination) n'est pas relié au vrai catalogue — il s'efface, seuls les produits restent.
+    if (/^\/collections\//.test(window.location.pathname)) {
+      document.querySelectorAll([
+        "[id^='FacetsWrapper']",
+        "[id^='FacetFiltersForm']",
+        ".facets-container",
+        "facet-filters-form",
+        ".facet-filters",
+        ".active-facets",
+        ".mobile-facets",
+        ".product-count",
+        ".pagination-wrapper",
+      ].join(", ")).forEach((node) => {
+        node.style.display = "none";
+      });
+    }
+    // Carrousels dont toutes les cartes sont masquées : on cache la liste et ses flèches.
+    document.querySelectorAll("ul").forEach((list) => {
+      const items = [...list.children];
+      if (!items.length || items.some((item) => item.style.display !== "none")) return;
+      const section = list.closest(".shopify-section, section") || list;
+      list.style.display = "none";
+      section.querySelectorAll(".slider-buttons, [class*='slider-controls']").forEach((controls) => {
+        controls.style.display = "none";
+      });
+    });
+    // Dernier passage : une section sans contenu réel disparaît, titres fantômes compris
+    // (« Nouveautés », « LATTAFA PARFUMS », bouton « Tout afficher »…).
+    document.querySelectorAll(".shopify-section").forEach((section) => {
+      if (section.style.display === "none") return;
+      const structural = (node) => {
+        if (node.classList.contains("aura-image-blocks")) return false;
+        if (node.offsetParent === null || getComputedStyle(node).display === "none") return true;
+        if (!node.children.length) {
+          const text = node.textContent.trim();
+          if (!text) return true;
+          const lowered = text.toLowerCase();
+          if (["tout afficher", "tout voir", "view all"].includes(lowered) || ["‹", "›", "❮", "❯", "→"].includes(text)) return true;
+          return !!node.closest("h1, h2, h3, h4, h5, h6, .collection__title, .title") && text.length <= 90;
+        }
+        return [...node.children].every(structural);
+      };
+      if (structural(section)) section.style.display = "none";
+    });
+  }
+
+  async function renderImageBlocks() {
+    try {
+      const response = await fetch(`/api/cms/blocks?page=${encodeURIComponent(contentPagePath())}`, { credentials: "same-origin" });
+      if (!response.ok) return;
+      const blocks = await response.json();
+      if (!Array.isArray(blocks) || !blocks.length) return;
+      const main = document.querySelector("#MainContent") || document.querySelector("main") || document.body;
+      const top = blocks.filter((block) => block.position !== "bottom");
+      const bottom = blocks.filter((block) => block.position === "bottom");
+      if (top.length) main.prepend(imageBlockSection(top));
+      if (bottom.length) main.append(imageBlockSection(bottom));
+    } catch {
+      // Le site reste normal si les images publiées sont indisponibles.
+    }
+  }
+
+  function imageBlockSection(blocks) {
+    // Les bannières et les photos ne se mélangent pas : chaque groupe suit l'ordre 1-2-3.
+    const fragment = document.createDocumentFragment();
+    let group = null;
+    const flush = () => {
+      if (!group) return;
+      const section = document.createElement("section");
+      section.className = "aura-image-blocks" + (group.hero ? " aura-image-blocks--hero" : "");
+      for (const node of group.nodes) section.append(node);
+      fragment.append(section);
+      group = null;
+    };
+    for (const block of blocks) {
+      const hero = block.style === "hero";
+      if (group && group.hero !== hero && group.nodes.length) flush();
+      if (!group) group = { hero, nodes: [] };
+      const image = document.createElement("img");
+      image.src = block.image_path;
+      image.alt = block.alt || "";
+      image.loading = "lazy";
+      image.decoding = "async";
+      if (block.link) {
+        const link = document.createElement("a");
+        link.href = block.link;
+        if (/^https:/.test(block.link)) {
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        }
+        link.append(image);
+        group.nodes.push(link);
+      } else {
+        group.nodes.push(image);
+      }
+    }
+    flush();
+    return fragment;
   }
 
   async function applySiteContent() {
@@ -322,6 +493,12 @@
   function renderStyles() {
     const style = document.createElement("style");
     style.textContent = `
+      .aura-image-blocks{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:center;padding:28px 5%;margin:0}
+      .aura-image-blocks figure,.aura-image-blocks a{margin:0;display:block}
+      .aura-image-blocks img{display:block;max-width:100%;height:auto;max-height:520px;border-radius:14px;object-fit:contain;cursor:pointer}
+      .aura-image-blocks--hero{display:block;padding:0;margin:0}
+      .aura-image-blocks--hero a,.aura-image-blocks--hero figure{width:100%}
+      .aura-image-blocks--hero img{width:100%;height:min(78vh,660px);min-height:300px;max-height:none;border-radius:0;object-fit:cover}
       .cms-nav-thumb{width:26px;height:26px;object-fit:cover;border-radius:50%;margin-right:8px;vertical-align:middle;display:inline-block}
       .template-image-placeholder.cms-filled{background-size:cover;background-position:center;background-repeat:no-repeat;border:0;color:transparent;font-size:0}
       .local-cart-count{position:absolute;top:0;right:0;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:50%;background:#c64f67;color:#fff;font:700 11px/1 sans-serif}
@@ -484,10 +661,26 @@
         for (const brand of brands) {
           const item = document.createElement("div");
           item.className = "vendor-item";
-          item.setAttribute("data-vendor", brand.name);
-          const title = document.createElement("h3");
-          title.textContent = brand.name;
-          item.append(title);
+          item.setAttribute("data-vendor", brand.name || "");
+          const link = document.createElement("a");
+          link.className = "vendor-link";
+          if (brand.slug) link.href = `/marque/${encodeURIComponent(brand.slug)}`;
+          if (brand.image_path) {
+            const image = document.createElement("img");
+            image.src = brand.image_path;
+            image.alt = brand.name ? `Logo ${brand.name}` : "Logo de la marque";
+            image.className = "vendor-image";
+            image.width = 100;
+            image.height = 100;
+            image.loading = "lazy";
+            link.append(image);
+          }
+          if (brand.name) {
+            const title = document.createElement("h3");
+            title.textContent = brand.name;
+            link.append(title);
+          }
+          item.append(link);
           fragment.append(item);
         }
       }
@@ -560,7 +753,8 @@
     updateCartPage();
     loadBackendProducts();
     loadBrands();
-    applySiteContent();
+    applySiteContent().finally(hideEmptyImageSlots);
+    renderImageBlocks();
     showAnalyticsConsent();
     addAnalyticsPreferencesLink();
   });

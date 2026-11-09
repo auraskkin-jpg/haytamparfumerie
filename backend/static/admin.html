@@ -59,6 +59,7 @@
             <button id="tab-images" type="button" role="tab" aria-selected="true">Photos</button>
             <button id="tab-texts" type="button" role="tab" aria-selected="false">Textes</button>
             <button id="tab-brands" type="button" role="tab" aria-selected="false">Marques</button>
+            <button id="tab-blocks" type="button" role="tab" aria-selected="false">Bannières</button>
           </div>
 
           <div id="panel-images" class="content-layout">
@@ -80,14 +81,52 @@
             <div id="text-list" class="text-list"></div>
           </div>
 
+          <div id="panel-blocks" class="card" hidden>
+            <div class="card-head">
+              <div><h3>Bannières du site</h3><span class="muted">Publie une photo sur l'accueil ou la page de ton choix : en haut ou en bas. Les cadres vides restent cachés, seules tes photos s'affichent.</span></div>
+              <span id="block-count" class="muted"></span>
+            </div>
+            <form id="block-form" class="block-form">
+              <div id="block-dropzone"></div>
+              <div class="block-grid">
+                <label>Page
+                  <select id="block-page"></select>
+                </label>
+                <label>Position
+                  <select id="block-position">
+                    <option value="top">En haut de la page</option>
+                    <option value="bottom">En bas de la page</option>
+                  </select>
+                </label>
+                <label>Affichage
+                  <select id="block-style">
+                    <option value="photo">Photo simple</option>
+                    <option value="hero">Grande bannière (pleine largeur)</option>
+                  </select>
+                </label>
+                <label>Lien (facultatif)
+                  <input id="block-link" type="text" placeholder="/cart, https://…">
+                </label>
+                <label>Texte alternatif (facultatif)
+                  <input id="block-alt" type="text" placeholder="Description de la photo">
+                </label>
+              </div>
+              <button class="btn btn-primary" type="submit">Publier la photo</button>
+            </form>
+            <div id="block-list" class="manager-list"></div>
+          </div>
+
           <div id="panel-brands" class="card" hidden>
             <div class="card-head">
               <div><h3>Marques de la boutique</h3><span class="muted">Ajoute ou supprime les marques affichées sur la page Marques.</span></div>
               <span id="brand-count" class="muted"></span>
             </div>
             <form id="brand-form" class="brand-form">
-              <input id="brand-name" name="name" type="text" placeholder="Nom de la marque" autocomplete="off" required maxlength="60">
-              <button class="btn btn-primary" type="submit">Ajouter la marque</button>
+              <div id="brand-dropzone"></div>
+              <div class="brand-row">
+                <input id="brand-name" name="name" type="text" placeholder="Nom de la marque (facultatif si tu ajoutes une photo)" autocomplete="off" maxlength="60">
+                <button class="btn btn-primary" type="submit">Ajouter la marque</button>
+              </div>
             </form>
             <div id="brand-list" class="manager-list"></div>
           </div>

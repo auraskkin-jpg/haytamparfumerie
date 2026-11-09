@@ -39,13 +39,86 @@ const VIEWS = {
 };
 
 const CATEGORIES = [
-  ["nouveaux-produits", "Nouveautés"],
-  ["parfums-1", "Parfums"],
-  ["visage", "Visage"],
-  ["maquillage", "Maquillage"],
-  ["soins-capillaires", "Cheveux"],
-  ["corps", "Corps"],
-  ["soins-dentaires", "Soins dentaires"],
+  ["cheveux", "CHEVEUX"],
+  ["corps", "CORPS"],
+  ["all", "Collection: Produits"],
+  ["ampoules", "Collection: Ampoules"],
+  ["anua", "Collection: ANUA"],
+  ["apres-shampoing", "Collection: APRES SHAMPOING"],
+  ["axis-y-maroc", "Collection: AXIS-Y"],
+  ["beauty-of-joseon", "Collection: Beauty Of Joseon"],
+  ["benefit", "Collection: Benefit"],
+  ["blush", "Collection: Blush"],
+  ["body-care", "Collection: Body care"],
+  ["bon-plans", "Collection: BON PLANS"],
+  ["bronzer", "Collection: Bronzer"],
+  ["brumes", "Collection: BRUMES"],
+  ["cerave", "Collection: Cerave Maroc"],
+  ["coffret", "Collection: Coffrets Parfum & Beauté"],
+  ["concealer-anti-cernes", "Collection: Concealer - Anti Cernes"],
+  ["contour-highlight", "Collection: Contour & Highlight"],
+  ["cosrx", "Collection: COSRX"],
+  ["crayons-a-levres", "Collection: Crayons à lèvres"],
+  ["creme-solaire", "Collection: Crème solaire"],
+  ["cremes", "Collection: crèmes"],
+  ["demaquillant", "Collection: Démaquillant"],
+  ["dr-althea", "Collection: Dr Althea"],
+  ["eponges-pinceaux", "Collection: Éponges - Pinceaux"],
+  ["essence", "Collection: Essence"],
+  ["exfoliants", "Collection: Exfoliants"],
+  ["eyebrow", "Collection: Eyebrow"],
+  ["eyeliner", "Collection: Eyeliner"],
+  ["eyeshadow", "Collection: Fard à paupières - Eyeshadow"],
+  ["fonds-de-teint", "Collection: Foundation - Fond de teint"],
+  ["gloss-a-levres", "Collection: Gloss à lèvres"],
+  ["hairmist", "Collection: hairmist"],
+  ["highlighter", "Collection: Highlighter"],
+  ["hismile", "Collection: Hismile"],
+  ["hydratant-visage", "Collection: Hydratant Visage"],
+  ["ibraheem-al-qurashi", "Collection: IBRAHEEM AL QURASHI"],
+  ["iunik", "Collection: IUNIK"],
+  ["j-beverly-hills", "Collection: J Beverly Hills"],
+  ["k-beauty-skincare", "K BEAUTY SKINCARE"],
+  ["la-fera", "La Fera"],
+  ["lattafa", "Collection: Lattafa Maroc"],
+  ["lentilles", "Collection: Lentilles"],
+  ["lip-plumper-volume", "Collection: Lip Plumper - Volume"],
+  ["mains", "Collection: Mains"],
+  ["maquillage", "maquillage"],
+  ["mascara", "Collection: Mascara"],
+  ["masques-capillaires", "Collection: Masques Capillaires"],
+  ["masques-visage", "Collection: Masques Visage"],
+  ["medicube", "Collection: Medicube"],
+  ["mmateriel-de-coiffure", "Collection: Matériel de Coiffure"],
+  ["nature-republic-1", "Collection: Nature Republic"],
+  ["nettoyant-visage", "Collection: Nettoyant Visage"],
+  ["nouveaux-produits", "Collection: Nouveaux Produits"],
+  ["numbuzin", "Collection: Numbuzin"],
+  ["nyx-professional-makeup", "Collection: NYX Professional Makeup"],
+  ["packs-visage", "Collection: Packs Visage"],
+  ["parfum-dinterieur-1", "Collection: PARFUM D'INTÉRIEUR"],
+  ["parfums-1", "parfums-1"],
+  ["parfums-pour-femmes", "Collection: Parfums pour femmes"],
+  ["parfums-pour-hommes", "Collection: Parfums Pour Hommes"],
+  ["parfums-shaikh-saeed", "parfums-shaikh-saeed"],
+  ["pieds", "Collection: Pieds"],
+  ["powder-fixateur", "Collection: Powder & Fixateur"],
+  ["pyunkang-yul", "Collection: Pyunkang Yul"],
+  ["q-a", "Collection: Q+A SKINCARE"],
+  ["rouges-a-levres-lipstick", "Collection: Rouges à lèvres - lipstick"],
+  ["round-lab", "Collection: ROUND LAB"],
+  ["serums-visage", "Collection: Serums Visage"],
+  ["shampoing", "Collection: Shampoing"],
+  ["skin-1004", "Collection: SKIN 1004"],
+  ["soins-capillaires", "Collection: Soins capillaires"],
+  ["soins-dentaires", "Collection: Soins Dentaires"],
+  ["soins-des-yeux", "Collection: Soins des Yeux"],
+  ["soins-levres", "Collection: Soins Lèvres"],
+  ["soins", "Collection: Soins"],
+  ["some-by-mi", "Collection: Some By Mi"],
+  ["toners", "Collection: Toners"],
+  ["trousses", "Collection: Trousses"],
+  ["visage", "VISAGE — Soins Essentiels"],
 ];
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -60,6 +133,7 @@ const state = {
   activeTab: "images",
   pendingTab: null,
   brands: [],
+  blocks: [],
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -547,15 +621,45 @@ function renderBrands() {
     return;
   }
   for (const brand of state.brands) {
+    const thumb = brand.image_path
+      ? h("img", { className: "brand-thumb", attrs: { src: brand.image_path, alt: "", loading: "lazy" } })
+      : h("span", { className: "brand-thumb brand-thumb--empty", text: (brand.name || "?").slice(0, 1).toUpperCase() });
+    const label = brand.name
+      ? h("span", { className: "brand-label", text: brand.name })
+      : h("span", { className: "brand-label muted", text: "Photo seule" });
     list.append(h("div", { className: "manager-row" }, [
-      h("span", { text: brand.name }),
+      h("div", { className: "brand-main" }, [
+        thumb,
+        h("div", {}, [label, h("span", { className: "brand-link muted", text: `/marque/${brand.slug}` })]),
+      ]),
       h("button", { className: "btn-text danger", attrs: { type: "button" }, text: "Supprimer", on: { click: () => deleteBrand(brand) } }),
     ]));
   }
 }
 
+let brandFile = null;
+
+function renderBrandDropzone() {
+  const container = $("#brand-dropzone");
+  container.replaceChildren();
+  brandFile = null;
+  const dropzone = createDropzone({
+    hint: "Glisse le logo de la marque ici ou clique pour choisir",
+    onFile: (file) => {
+      const error = checkImage(file);
+      if (error) {
+        toast(error, "error");
+        return;
+      }
+      brandFile = file;
+      dropzone.title.textContent = `Prête : ${file.name}`;
+    },
+  });
+  container.append(dropzone.zone);
+}
+
 async function deleteBrand(brand) {
-  if (!window.confirm(`Supprimer « ${brand.name} » de la liste des marques ?`)) return;
+  if (!window.confirm(`Supprimer « ${brand.name || brand.slug} » de la liste des marques ?`)) return;
   try {
     await api(`/api/panel/brands/${encodeURIComponent(brand.id)}`, { method: "DELETE" });
     toast("Marque supprimée.", "success");
@@ -584,9 +688,70 @@ function selectPage(page) {
   renderSlots();
 }
 
+async function loadImageBlocks() {
+  state.blocks = await api("/api/panel/image-blocks");
+  renderImageBlocks();
+}
+
+function renderImageBlocks() {
+  const list = $("#block-list");
+  const count = $("#block-count");
+  list.replaceChildren();
+  if (count) count.textContent = state.blocks.length ? `${state.blocks.length} photo${state.blocks.length > 1 ? "s" : ""}` : "";
+  if (!state.blocks.length) {
+    list.append(h("p", { className: "muted", text: "Aucune photo publiée pour le moment." }));
+    return;
+  }
+  for (const block of state.blocks) {
+    const thumb = h("img", { className: "brand-thumb", attrs: { src: block.image_path, alt: "", loading: "lazy" } });
+    list.append(h("div", { className: "manager-row" }, [
+      h("div", { className: "brand-main" }, [
+        thumb,
+        h("div", {}, [
+          h("span", { className: "brand-label", text: `${pageLabel(block.page)} · ${block.style === "hero" ? "Grande bannière" : "Photo"} · ${block.position === "bottom" ? "Bas de page" : "Haut de page"}` }),
+          h("span", { className: "brand-link muted", text: block.link ? `${block.page} → ${block.link}` : block.page }),
+        ]),
+      ]),
+      h("button", { className: "btn-text danger", attrs: { type: "button" }, text: "Supprimer", on: { click: () => deleteImageBlock(block) } }),
+    ]));
+  }
+}
+
+async function deleteImageBlock(block) {
+  if (!window.confirm(`Retirer cette photo de ${pageLabel(block.page)} ?`)) return;
+  try {
+    await api(`/api/panel/image-blocks/${encodeURIComponent(block.id)}`, { method: "DELETE" });
+    toast("Photo retirée.", "success");
+    await loadImageBlocks();
+  } catch (error) {
+    toast(error.message, "error");
+  }
+}
+
+let blockFile = null;
+
+function renderBlockDropzone() {
+  const container = $("#block-dropzone");
+  container.replaceChildren();
+  blockFile = null;
+  const dropzone = createDropzone({
+    hint: "Glisse la bannière ici ou clique pour choisir",
+    onFile: (file) => {
+      const error = checkImage(file);
+      if (error) {
+        toast(error, "error");
+        return;
+      }
+      blockFile = file;
+      dropzone.title.textContent = `Prête : ${file.name}`;
+    },
+  });
+  container.append(dropzone.zone);
+}
+
 function setTab(tab) {
   state.activeTab = tab;
-  const panels = { images: "#panel-images", texts: "#panel-texts", brands: "#panel-brands" };
+  const panels = { images: "#panel-images", texts: "#panel-texts", brands: "#panel-brands", blocks: "#panel-blocks" };
   for (const [name, panel] of Object.entries(panels)) {
     const node = $(panel);
     if (node) node.hidden = name !== tab;
@@ -933,6 +1098,7 @@ function wireEvents() {
   $("#tab-images").addEventListener("click", () => setTab("images"));
   $("#tab-texts").addEventListener("click", () => setTab("texts"));
   $("#tab-brands").addEventListener("click", () => setTab("brands"));
+  $("#tab-blocks").addEventListener("click", () => setTab("blocks"));
   $("#slot-search").addEventListener("input", renderSlots);
   $("#text-filter").addEventListener("input", renderTexts);
   $("#product-search").addEventListener("input", renderProducts);
@@ -976,22 +1142,66 @@ function wireEvents() {
       button.disabled = false;
     }
   });
+  renderBrandDropzone();
+  renderBlockDropzone();
+  const blockPage = $("#block-page");
+  if (blockPage) {
+    blockPage.replaceChildren(...PAGE_ORDER.filter((page) => page !== "menu").map((page) => h("option", { attrs: { value: page }, text: pageLabel(page) })));
+  }
+  $("#block-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = $("#block-form button[type=submit]");
+    if (!blockFile) {
+      toast("Choisis une photo à publier.", "error");
+      return;
+    }
+    button.disabled = true;
+    try {
+      const imagePath = await uploadImage(blockFile, () => {});
+      await api("/api/panel/image-blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: $("#block-page")?.value || "index.html",
+          position: $("#block-position")?.value || "top",
+          style: $("#block-style")?.value || "photo",
+          image_path: imagePath,
+          link: $("#block-link").value.trim(),
+          alt: $("#block-alt").value.trim(),
+        }),
+      });
+      renderBlockDropzone();
+      $("#block-link").value = "";
+      $("#block-alt").value = "";
+      toast("Photo publiée sur le site.", "success");
+      await loadImageBlocks();
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
   $("#brand-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const input = $("#brand-name");
     const button = form.querySelector('button[type="submit"]');
     const name = input.value.trim();
-    if (!name) return;
+    if (!name && !brandFile) {
+      toast("Ajoute un nom ou une photo pour la marque.", "error");
+      return;
+    }
     button.disabled = true;
     try {
+      const imagePath = brandFile ? await uploadImage(brandFile, () => {}) : null;
       await api("/api/panel/brands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, image_path: imagePath }),
       });
       input.value = "";
-      toast(`Marque « ${name} » ajoutée.`, "success");
+      renderBrandDropzone();
+      toast(name ? `Marque « ${name} » ajoutée.` : "Marque ajoutée.", "success");
       await loadBrands();
     } catch (error) {
       toast(error.message, "error");
@@ -1029,7 +1239,7 @@ async function init() {
   } catch (error) {
     toast(error.message, "error");
   }
-  const tasks = [loadProducts(), loadBrands()];
+  const tasks = [loadProducts(), loadBrands(), loadImageBlocks()];
   if (state.isOwner) tasks.push(loadAnalytics(state.analyticsDays || 30), loadManagers());
   const results = await Promise.allSettled(tasks);
   for (const result of results) {

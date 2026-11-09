@@ -527,6 +527,7 @@ struct ProductInput {
 #[derive(Deserialize)]
 struct ProductFilter {
     category: Option<String>,
+    brand: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -804,8 +805,13 @@ async fn session(State(state): State<AppState>, headers: HeaderMap) -> Json<Sess
 }
 
 async fn list_products(State(state): State<AppState>, Query(filter): Query<ProductFilter>) -> ApiResult<Json<Vec<PublicProduct>>> {
-    let rows = if let Some(category) = filter.category.filter(|value| !value.is_empty()) {
-        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE active = 1 AND category = ? ORDER BY created_at DESC LIMIT 200")
+    let rows = if let Some(brand) = filter.brand.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty()) {
+        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE active = 1 AND brand = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 200")
+            .bind(brand)
+            .fetch_all(&state.pool)
+            .await
+    } else if let Some(category) = filter.category.filter(|value| !value.is_empty()) {
+        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE active = 1 AND category = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 200")
             .bind(category)
             .fetch_all(&state.pool)
             .await
@@ -952,39 +958,79 @@ async fn revoke_manager(State(state): State<AppState>, Path(user_id): Path<Strin
 
 #[derive(Deserialize)]
 struct BrandInput {
-    name: String,
+    name: Option<String>,
+    image_path: Option<String>,
 }
 
 #[derive(Serialize, FromRow)]
 struct Brand {
     id: i64,
     name: String,
+    slug: String,
+    image_path: Option<String>,
+}
+
+fn brand_image(value: Option<String>) -> ApiResult<Option<String>> {
+    let image = value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+    if image.as_ref().is_some_and(|value| !value.starts_with("/assets/products/") || value.contains("..") || value.len() > 240) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Brand image path is invalid"));
+    }
+    Ok(image)
 }
 
 async fn list_brands(State(state): State<AppState>) -> ApiResult<Json<Vec<Brand>>> {
-    let rows = sqlx::query_as::<_, Brand>("SELECT id, name FROM brands ORDER BY name COLLATE NOCASE")
+    let rows = sqlx::query_as::<_, Brand>("SELECT id, name, slug, image_path FROM brands ORDER BY name = '', name COLLATE NOCASE, id")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load brands"))?;
     Ok(Json(rows))
 }
 
+async fn get_brand(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Json<Brand>> {
+    let row = sqlx::query_as::<_, Brand>("SELECT id, name, slug, image_path FROM brands WHERE slug = ?")
+        .bind(slug)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load brand"))?;
+    Ok(Json(row.ok_or(ApiError(StatusCode::NOT_FOUND, "Brand not found"))?))
+}
+
 async fn create_brand(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<BrandInput>) -> ApiResult<impl IntoResponse> {
     check_origin(&headers)?;
     require_admin(&state, &headers).await?;
-    let name = input.name.trim().to_owned();
-    if name.is_empty() || name.chars().count() > 60 {
-        return Err(ApiError(StatusCode::BAD_REQUEST, "Un nom de marque valide est requis (60 caractères maximum)"));
+    let name = input.name.as_deref().unwrap_or("").trim().to_owned();
+    if name.chars().count() > 60 {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Le nom de la marque ne doit pas dépasser 60 caractères"));
     }
-    let result = sqlx::query("INSERT INTO brands (name, created_at) VALUES (?, ?)")
-        .bind(&name)
+    let image = brand_image(input.image_path)?;
+    if name.is_empty() && image.is_none() {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Ajoute un nom ou une photo pour la marque"));
+    }
+    let slug = if name.is_empty() { String::new() } else { slugify(&name) };
+    let result = sqlx::query("INSERT INTO brands (name, slug, image_path, created_at) VALUES (?, ?, ?, ?)")
+        .bind(name.clone())
+        .bind(slug)
+        .bind(image.clone())
         .bind(now())
         .execute(&state.pool)
         .await;
     match result {
         Ok(outcome) => {
             let id = outcome.last_insert_rowid();
-            Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id, "name": name }))))
+            let slug = format!("marque-{id}");
+            sqlx::query("UPDATE brands SET slug = ? WHERE id = ? AND slug = ''")
+                .bind(&slug)
+                .bind(id)
+                .execute(&state.pool)
+                .await
+                .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not save brand"))?;
+            let slug = sqlx::query_as::<_, (String,)>("SELECT slug FROM brands WHERE id = ?")
+                .bind(id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not save brand"))?
+                .0;
+            Ok((StatusCode::CREATED, Json(Brand { id, name, slug, image_path: image })))
         }
         Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
             Err(ApiError(StatusCode::CONFLICT, "Cette marque existe déjà"))
@@ -1315,6 +1361,146 @@ async fn dynamic_product_page(State(state): State<AppState>, Path(slug): Path<St
     Ok(Html(include_str!("../static/product.html")))
 }
 
+async fn brand_page(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Html<&'static str>> {
+    let exists: Option<(String,)> = sqlx::query_as("SELECT slug FROM brands WHERE slug = ?")
+        .bind(slug)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load brand"))?;
+    exists.ok_or(ApiError(StatusCode::NOT_FOUND, "Brand not found"))?;
+    Ok(Html(include_str!("../static/brand.html")))
+}
+
+async fn brand_js() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], include_str!("../static/brand.js")).into_response() }
+
+async fn home_redirect() -> axum::response::Redirect { axum::response::Redirect::permanent("/") }
+
+#[derive(Deserialize)]
+struct ImageBlockInput {
+    page: String,
+    position: Option<String>,
+    image_path: String,
+    link: Option<String>,
+    alt: Option<String>,
+    style: Option<String>,
+}
+
+#[derive(Serialize, FromRow)]
+struct ImageBlock {
+    id: i64,
+    page: String,
+    position: String,
+    image_path: String,
+    link: String,
+    alt: String,
+    style: String,
+}
+
+#[derive(Deserialize)]
+struct ImageBlockFilter {
+    page: Option<String>,
+}
+
+async fn list_public_image_blocks(State(state): State<AppState>, Query(filter): Query<ImageBlockFilter>) -> ApiResult<Json<Vec<ImageBlock>>> {
+    let page = filter.page.unwrap_or_default();
+    let rows = sqlx::query_as::<_, ImageBlock>("SELECT id, page, position, image_path, link, alt, style FROM image_blocks WHERE page = ? ORDER BY position = 'bottom', id")
+        .bind(page)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load images"))?;
+    Ok(Json(rows))
+}
+
+async fn admin_image_blocks(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<ImageBlock>>> {
+    require_admin(&state, &headers).await?;
+    let rows = sqlx::query_as::<_, ImageBlock>("SELECT id, page, position, image_path, link, alt, style FROM image_blocks ORDER BY page, position = 'bottom', id")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load images"))?;
+    Ok(Json(rows))
+}
+
+async fn create_image_block(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<ImageBlockInput>) -> ApiResult<impl IntoResponse> {
+    check_origin(&headers)?;
+    require_admin(&state, &headers).await?;
+    let page = input.page.trim().to_owned();
+    if !page.ends_with(".html") || page.len() > 120 || page.contains("..") || page.starts_with('/')
+        || !page.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
+    {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Page invalide"));
+    }
+    let position = if input.position.as_deref() == Some("bottom") { "bottom" } else { "top" };
+    let style = if input.style.as_deref() == Some("hero") { "hero" } else { "photo" };
+    let image = brand_image(Some(input.image_path))?.ok_or(ApiError(StatusCode::BAD_REQUEST, "Ajoute une photo"))?;
+    let link = input.link.unwrap_or_default().trim().to_owned();
+    if link.len() > 300 || !(link.is_empty() || link.starts_with('/') || link.starts_with("https://")) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Le lien doit commencer par / ou https://"));
+    }
+    let alt: String = input.alt.unwrap_or_default().trim().chars().take(160).collect();
+    let result = sqlx::query("INSERT INTO image_blocks (page, position, image_path, link, alt, style, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(page.clone())
+        .bind(position)
+        .bind(image.clone())
+        .bind(link.clone())
+        .bind(alt.clone())
+        .bind(style)
+        .bind(now())
+        .execute(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not save image"))?;
+    let id = result.last_insert_rowid();
+    Ok((StatusCode::CREATED, Json(ImageBlock { id, page, position: position.to_owned(), image_path: image, link, alt, style: style.to_owned() })))
+}
+
+async fn delete_image_block(State(state): State<AppState>, Path(id): Path<i64>, headers: HeaderMap) -> ApiResult<Json<serde_json::Value>> {
+    check_origin(&headers)?;
+    require_admin(&state, &headers).await?;
+    let result = sqlx::query("DELETE FROM image_blocks WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not delete image"))?;
+    if result.rows_affected() == 0 {
+        return Err(ApiError(StatusCode::NOT_FOUND, "Image not found"));
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn clean_urls(State(root): State<std::path::PathBuf>, mut request: axum::extract::Request, next: Next) -> Response {
+    let uri = request.uri().clone();
+    let path = uri.path().to_owned();
+    let query = uri.query().map(|value| format!("?{value}")).unwrap_or_default();
+    if let Some(clean) = path.strip_suffix(".html") {
+        let target = if clean.is_empty() || clean == "/index" { "/".to_owned() } else { clean.to_owned() };
+        return (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, format!("{target}{query}"))]).into_response();
+    }
+    let relative = path.trim_start_matches('/');
+    let last_segment = relative.rsplit('/').next().unwrap_or("");
+    if !relative.is_empty() && !path.ends_with('/') && !relative.contains("..") && !last_segment.contains('.')
+        && !relative.starts_with("products/")
+        && root.join(format!("{relative}.html")).is_file()
+    {
+        if let Ok(rewritten) = format!("{path}.html{query}").parse::<axum::http::Uri>() {
+            *request.uri_mut() = rewritten;
+        }
+    }
+    next.run(request).await
+}
+
+async fn redirect_static_products(State(state): State<AppState>, Path(slug): Path<String>) -> axum::response::Redirect {
+    let exists: Option<(String,)> = sqlx::query_as("SELECT slug FROM products WHERE slug = ? AND active = 1")
+        .bind(slug.trim())
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+    if exists.is_some() {
+        axum::response::Redirect::temporary(&format!("/product/{}", slug.trim()))
+    } else {
+        axum::response::Redirect::temporary("/")
+    }
+}
+
 async fn health() -> Json<serde_json::Value> { Json(serde_json::json!({ "ok": true })) }
 
 fn is_app_page(path: &str) -> bool {
@@ -1411,6 +1597,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _ = dotenvy::dotenv();
     let static_dir = resolve_path("STATIC_DIR", &["../modele-boutique", "modele-boutique"]);
+    let clean_root = static_dir.clone();
     let upload_dir = resolve_path("PRODUCT_UPLOAD_DIR", &["../assets/products", "assets/products"]);
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://../backend/store.db?mode=rwc".to_owned());
     let options = SqliteConnectOptions::from_str(&database_url)?
@@ -1446,6 +1633,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth.js", get(auth_js))
         .route("/product.css", get(product_css))
         .route("/product/{slug}", get(dynamic_product_page))
+        .route("/marque/{slug}", get(brand_page))
+        .route("/products/{slug}", get(redirect_static_products))
+        .route("/brand.js", get(brand_js))
+        .route("/index.html", get(home_redirect))
+        .route("/api/brands/{slug}", get(get_brand))
+        .route("/api/cms/blocks", get(list_public_image_blocks))
+        .route("/api/panel/image-blocks", get(admin_image_blocks).post(create_image_block))
+        .route("/api/panel/image-blocks/{id}", axum::routing::delete(delete_image_block))
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
@@ -1475,14 +1670,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fallback_service(ServeDir::new(static_dir))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_BYTES + 32 * 1024))
         .layer(middleware::from_fn(security_headers))
+        .layer(middleware::from_fn_with_state(clean_root, clean_urls))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let default_bind = env::var("PORT").map(|port| format!("0.0.0.0:{port}")).unwrap_or_else(|_| "127.0.0.1:8080".into());
-    let address: SocketAddr = env::var("BIND_ADDRESS").unwrap_or(default_bind).parse()?;
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    println!("Aura store backend listening at http://{address}");
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
+    let bind_spec = env::var("BIND_ADDRESS").unwrap_or(default_bind);
+    let mut requested: Vec<SocketAddr> = Vec::new();
+    for address in bind_spec.split(',').map(str::trim).filter(|value| !value.is_empty()) {
+        requested.push(address.parse()?);
+    }
+    if requested.is_empty() {
+        requested.push("127.0.0.1:8080".parse()?);
+    }
+    let mut served: std::collections::HashSet<u16> = std::collections::HashSet::new();
+    let mut joints: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for address in requested.clone() {
+        match tokio::net::TcpListener::bind(address).await {
+            Ok(listener) => {
+                println!("Aura store backend listening at http://{address}");
+                served.insert(address.port());
+                let service = app.clone().into_make_service_with_connect_info::<SocketAddr>();
+                joints.push(tokio::spawn(async move { let _ = axum::serve(listener, service).await; }));
+            }
+            Err(error) => {
+                println!("Port {} indisponible pour le moment ({error}); nouvel essai plus tard.", address.port());
+            }
+        }
+    }
+    // Réessaie les adresses occupées au démarrage, pour les prendre dès qu'elles se libèrent.
+    joints.push(tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            for address in requested.iter() {
+                if served.contains(&address.port()) {
+                    continue;
+                }
+                if let Ok(listener) = tokio::net::TcpListener::bind(address).await {
+                    println!("Aura store backend listening at http://{address} (port libéré)");
+                    served.insert(address.port());
+                    let service = app.clone().into_make_service_with_connect_info::<SocketAddr>();
+                    tokio::spawn(async move { let _ = axum::serve(listener, service).await; });
+                }
+            }
+        }
+    }));
+    for joint in joints {
+        let _ = joint.await;
+    }
     Ok(())
 }
 

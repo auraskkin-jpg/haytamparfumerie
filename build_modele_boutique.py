@@ -689,6 +689,85 @@ def disable_data_loaders() -> None:
         script_path.write_text(script, encoding="utf-8")
 
 
+INTERNAL_HTML_HREF = re.compile(r'href="(?!https?:|mailto:|tel:|#|//|javascript:)([^"#?]*?)\.html((?:[#?][^"]*)?)"')
+
+
+def clean_internal_links() -> None:
+    home_paths = {"index", "./index", "../index", "../../index", "../../../index"}
+
+    def replace(match: re.Match[str]) -> str:
+        path, rest = match.group(1), match.group(2)
+        if path in home_paths:
+            return f'href="/{rest}"'
+        return f'href="{path}{rest}"'
+
+    for page in OUTPUT.rglob("*.html"):
+        source = page.read_text(encoding="utf-8", errors="replace")
+        cleaned = INTERNAL_HTML_HREF.sub(replace, source)
+        if cleaned != source:
+            page.write_text(cleaned, encoding="utf-8")
+
+
+NAV_TARGETS = {
+    "Visage": "collections/visage",
+    "Maquillage": "collections/maquillage",
+    "Corps": "collections/CORPS",
+    "Cheveux": "collections/CHEVEUX",
+    "Parfums": "collections/parfums-1",
+    "K beauty skincare": "collections/k-beauty-skincare",
+}
+
+
+def strip_nav_dropdowns() -> None:
+    """Les menus déroulants de l'export ne sont pas remplis : un clic direct sur le libellé ouvre la page collection."""
+    li_open = re.compile(r"<li\b[^>]*\bclass=\"bd-dropdown\"[^>]*>")
+    for page in OUTPUT.rglob("*.html"):
+        source = page.read_text(encoding="utf-8", errors="replace")
+        depth = len(page.relative_to(OUTPUT).parts) - 1
+        prefix = "../" * depth
+        cursor = 0
+        while True:
+            match = li_open.search(source, cursor)
+            if not match:
+                break
+            start = match.start()
+            level = 0
+            end = None
+            for token in re.finditer(r"<li\b|</li>", source[match.start():]):
+                if token.group(0).startswith("<li"):
+                    level += 1
+                else:
+                    level -= 1
+                    if level == 0:
+                        end = match.start() + token.end()
+                        break
+            if end is None:
+                break
+            block = source[start:end]
+            closed, replacement = _nav_replacement(page, block, prefix)
+            source = source[:start] + (block if not closed else replacement) + source[end:]
+            cursor = start + len(replacement if closed else block)
+        page.write_text(source, encoding="utf-8")
+
+
+def _nav_replacement(page, block, prefix):
+    label_match = re.search(r'<button class="bd-topbtn"[^>]*>([^<]+)</button>', block)
+    if not label_match:
+        return False, block
+    label = label_match.group(1).strip()
+    target = NAV_TARGETS.get(label, "")
+    if not target or not (OUTPUT / (target + ".html")).is_file():
+        fallback = re.search(r'href="([^"]+)"', block)
+        if not fallback:
+            return False, block
+        target = fallback.group(1)
+        if target.endswith(".html"):
+            target = target[:-5]
+    href = target if target.startswith(("http", "/")) else prefix + target
+    replacement = ('<li class="bd-dropdown"><a class="bd-topbtn bd-toplink" href="%s" data-nav-label="%s">%s</a></li>' % (href, label.replace('"', "&quot;"), label))
+    return True, replacement
+
+
 def main() -> None:
     CMS_TEXTS.clear()
     CMS_IMAGES.clear()
@@ -707,6 +786,8 @@ def main() -> None:
         content = re.sub(r"url\(\s*(['\"]?)(?:https?:)?//[^)]+\)", "none", content, flags=re.I)
         stylesheet.write_text(content, encoding="utf-8")
     rebrand_output()
+    clean_internal_links()
+    strip_nav_dropdowns()
 
 
 if __name__ == "__main__":
