@@ -586,7 +586,7 @@ def ignore_copy(directory: str, names: list[str]) -> set[str]:
     for name in names:
         item = current / name
         relative = item.relative_to(ROOT)
-        if relative.parts[0] in {"modele-boutique", "backend", "checkouts", ".well-known", "__pycache__", "build_modele_boutique.py"}:
+        if relative.parts[0] in {"modele-boutique", "backend", "checkouts", ".well-known", "__pycache__", "build_modele_boutique.py", ".git"}:
             ignored.add(name)
         elif item.is_file() and item.suffix.lower().startswith(".js") and any(blocked in item.name.lower() for blocked in BLOCKED_SCRIPT_FILES):
             ignored.add(name)

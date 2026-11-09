@@ -46,7 +46,7 @@ const REGISTER_IP_LIMIT: u32 = 10;
 const ANALYTICS_WINDOW_SECONDS: i64 = 60;
 const ANALYTICS_IP_LIMIT: u32 = 120;
 const STOREFRONT_CSP: &str = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
-const APP_CSP: &str = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+const APP_CSP: &str = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
 #[derive(Clone)]
 struct AppState {
@@ -135,6 +135,8 @@ struct Product {
     category: String,
     image_path: Option<String>,
     active: i64,
+    promo: i64,
+    sold_out: i64,
 }
 
 #[derive(Serialize)]
@@ -147,6 +149,8 @@ struct PublicProduct {
     price: f64,
     category: String,
     image_path: Option<String>,
+    promo: bool,
+    sold_out: bool,
 }
 
 impl From<Product> for PublicProduct {
@@ -159,6 +163,8 @@ impl From<Product> for PublicProduct {
             price: product.price_cents as f64 / 100.0,
             category: product.category,
             image_path: product.image_path,
+            promo: product.promo != 0,
+            sold_out: product.sold_out != 0,
         }
     }
 }
@@ -512,6 +518,10 @@ struct ProductInput {
     price: f64,
     category: String,
     image_path: Option<String>,
+    #[serde(default)]
+    promo: Option<bool>,
+    #[serde(default)]
+    sold_out: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -795,12 +805,12 @@ async fn session(State(state): State<AppState>, headers: HeaderMap) -> Json<Sess
 
 async fn list_products(State(state): State<AppState>, Query(filter): Query<ProductFilter>) -> ApiResult<Json<Vec<PublicProduct>>> {
     let rows = if let Some(category) = filter.category.filter(|value| !value.is_empty()) {
-        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active FROM products WHERE active = 1 AND category = ? ORDER BY created_at DESC LIMIT 200")
+        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE active = 1 AND category = ? ORDER BY created_at DESC LIMIT 200")
             .bind(category)
             .fetch_all(&state.pool)
             .await
     } else {
-        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active FROM products WHERE active = 1 ORDER BY created_at DESC LIMIT 200")
+        sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE active = 1 ORDER BY created_at DESC LIMIT 200")
             .fetch_all(&state.pool)
             .await
     }
@@ -809,7 +819,7 @@ async fn list_products(State(state): State<AppState>, Query(filter): Query<Produ
 }
 
 async fn get_product(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Json<PublicProduct>> {
-    let row = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active FROM products WHERE slug = ? AND active = 1")
+    let row = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products WHERE slug = ? AND active = 1")
         .bind(slug)
         .fetch_optional(&state.pool)
         .await
@@ -820,7 +830,7 @@ async fn get_product(State(state): State<AppState>, Path(slug): Path<String>) ->
 
 async fn admin_products(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<Product>>> {
     require_admin(&state, &headers).await?;
-    let rows = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active FROM products ORDER BY created_at DESC LIMIT 500")
+    let rows = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products ORDER BY created_at DESC LIMIT 500")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load products"))?;
@@ -845,7 +855,7 @@ fn csv_download(filename: &'static str, content: String) -> Response {
 
 async fn export_products(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
     require_owner(&state, &headers).await?;
-    let products = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active FROM products ORDER BY name COLLATE NOCASE")
+    let products = sqlx::query_as::<_, Product>("SELECT slug, name, brand, description, price_cents, category, image_path, active, promo, sold_out FROM products ORDER BY name COLLATE NOCASE")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not export products"))?;
@@ -940,12 +950,71 @@ async fn revoke_manager(State(state): State<AppState>, Path(user_id): Path<Strin
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[derive(Deserialize)]
+struct BrandInput {
+    name: String,
+}
+
+#[derive(Serialize, FromRow)]
+struct Brand {
+    id: i64,
+    name: String,
+}
+
+async fn list_brands(State(state): State<AppState>) -> ApiResult<Json<Vec<Brand>>> {
+    let rows = sqlx::query_as::<_, Brand>("SELECT id, name FROM brands ORDER BY name COLLATE NOCASE")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load brands"))?;
+    Ok(Json(rows))
+}
+
+async fn create_brand(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<BrandInput>) -> ApiResult<impl IntoResponse> {
+    check_origin(&headers)?;
+    require_admin(&state, &headers).await?;
+    let name = input.name.trim().to_owned();
+    if name.is_empty() || name.chars().count() > 60 {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "Un nom de marque valide est requis (60 caractères maximum)"));
+    }
+    let result = sqlx::query("INSERT INTO brands (name, created_at) VALUES (?, ?)")
+        .bind(&name)
+        .bind(now())
+        .execute(&state.pool)
+        .await;
+    match result {
+        Ok(outcome) => {
+            let id = outcome.last_insert_rowid();
+            Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id, "name": name }))))
+        }
+        Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+            Err(ApiError(StatusCode::CONFLICT, "Cette marque existe déjà"))
+        }
+        Err(_) => Err(ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not save brand")),
+    }
+}
+
+async fn delete_brand(State(state): State<AppState>, Path(id): Path<i64>, headers: HeaderMap) -> ApiResult<Json<serde_json::Value>> {
+    check_origin(&headers)?;
+    require_admin(&state, &headers).await?;
+    let result = sqlx::query("DELETE FROM brands WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not delete brand"))?;
+    if result.rows_affected() == 0 {
+        return Err(ApiError(StatusCode::NOT_FOUND, "Brand not found"));
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 async fn create_product(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<ProductInput>) -> ApiResult<impl IntoResponse> {
     check_origin(&headers)?;
     require_admin(&state, &headers).await?;
     let (slug, price, image) = validate_product(&input)?;
     let timestamp = now();
-    let result = sqlx::query("INSERT INTO products (slug, name, brand, description, price_cents, category, image_path, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)")
+    let promo = input.promo.unwrap_or(false) as i64;
+    let sold_out = input.sold_out.unwrap_or(false) as i64;
+    let result = sqlx::query("INSERT INTO products (slug, name, brand, description, price_cents, category, image_path, active, created_at, updated_at, promo, sold_out) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)")
         .bind(slug)
         .bind(input.name.trim())
         .bind(input.brand.trim())
@@ -955,6 +1024,8 @@ async fn create_product(State(state): State<AppState>, headers: HeaderMap, Json(
         .bind(image)
         .bind(timestamp)
         .bind(timestamp)
+        .bind(promo)
+        .bind(sold_out)
         .execute(&state.pool)
         .await;
     match result {
@@ -970,13 +1041,23 @@ async fn update_product(State(state): State<AppState>, Path(slug): Path<String>,
     check_origin(&headers)?;
     require_admin(&state, &headers).await?;
     let (_, price, image) = validate_product(&input)?;
-    let result = sqlx::query("UPDATE products SET name = ?, brand = ?, description = ?, price_cents = ?, category = ?, image_path = ?, updated_at = ? WHERE slug = ?")
+    let current: Option<(i64, i64)> = sqlx::query_as("SELECT promo, sold_out FROM products WHERE slug = ?")
+        .bind(&slug)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "Could not load product"))?;
+    let flags = current.unwrap_or((0, 0));
+    let promo = input.promo.unwrap_or(flags.0 != 0) as i64;
+    let sold_out = input.sold_out.unwrap_or(flags.1 != 0) as i64;
+    let result = sqlx::query("UPDATE products SET name = ?, brand = ?, description = ?, price_cents = ?, category = ?, image_path = ?, promo = ?, sold_out = ?, updated_at = ? WHERE slug = ?")
         .bind(input.name.trim())
         .bind(input.brand.trim())
         .bind(input.description.trim())
         .bind(price)
         .bind(slugify(&input.category))
         .bind(image)
+        .bind(promo)
+        .bind(sold_out)
         .bind(now())
         .bind(slug)
         .execute(&state.pool)
@@ -1220,7 +1301,8 @@ async fn login_page() -> Html<&'static str> { Html(include_str!("../static/login
 async fn register_page() -> Html<&'static str> { Html(include_str!("../static/register.html")) }
 async fn panel_css() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], include_str!("../static/panel.css")).into_response() }
 async fn auth_js() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], include_str!("../static/auth.js")).into_response() }
-async fn panel_js() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], include_str!("../static/panel.js")).into_response() }
+async fn dashboard_css() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], include_str!("../static/dashboard.css")).into_response() }
+async fn dashboard_js() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], include_str!("../static/dashboard.js")).into_response() }
 async fn product_css() -> axum::response::Response { ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], include_str!("../static/product.css")).into_response() }
 
 async fn dynamic_product_page(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Html<&'static str>> {
@@ -1359,8 +1441,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/register", get(register_page))
         .route(ADMIN_PATH, get(admin_page))
         .route(&format!("{ADMIN_PATH}/panel.css"), get(panel_css))
+        .route(&format!("{ADMIN_PATH}/dashboard.css"), get(dashboard_css))
+        .route(&format!("{ADMIN_PATH}/dashboard.js"), get(dashboard_js))
         .route("/auth.js", get(auth_js))
-        .route(&format!("{ADMIN_PATH}/panel.js"), get(panel_js))
         .route("/product.css", get(product_css))
         .route("/product/{slug}", get(dynamic_product_page))
         .route("/api/auth/register", post(register))
@@ -1382,6 +1465,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/panel/analytics", get(admin_analytics))
         .route("/api/panel/managers", get(list_managers).post(create_manager))
         .route("/api/panel/managers/{id}", axum::routing::delete(revoke_manager))
+        .route("/api/brands", get(list_brands))
+        .route("/api/panel/brands", post(create_brand))
+        .route("/api/panel/brands/{id}", axum::routing::delete(delete_brand))
         .route("/api/panel/export/products.csv", get(export_products))
         .route("/api/panel/export/customer-emails.csv", get(export_customer_emails))
         .route("/api/panel/upload", post(upload_product_image))
@@ -1415,7 +1501,7 @@ mod tests {
         let input = ProductInput {
             slug: Some("good-product".into()), name: "Good".into(), brand: String::new(),
             description: String::new(), price: f64::NAN, category: "soins".into(),
-            image_path: None,
+            image_path: None, promo: None, sold_out: None,
         };
         assert!(validate_product(&input).is_err());
         let input = ProductInput { price: 10.0, image_path: Some("https://example.com/image.jpg".into()), ..input };

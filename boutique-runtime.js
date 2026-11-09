@@ -163,6 +163,52 @@
     placeholder.replaceWith(image);
   }
 
+  function hideStaticBadges(root) {
+    root.querySelectorAll(".price__badge-sale, .price__badge-sold-out").forEach((badge) => {
+      badge.classList.add("hidden");
+    });
+    root.querySelectorAll(".badge").forEach((badge) => {
+      if (/épuisé|sold\s*out/i.test((badge.textContent || "").trim())) {
+        badge.textContent = "";
+        badge.classList.add("hidden");
+      }
+    });
+    root.querySelectorAll(".price--sold-out").forEach((node) => node.classList.remove("price--sold-out"));
+  }
+
+  function showProductFlagBadge(node, product) {
+    if (!product.soldOut && !product.promo) return;
+    const holder = node.querySelector(".card__badge") || (() => {
+      const spot = document.createElement("div");
+      spot.className = "card__badge bottom left";
+      (node.querySelector(".card__inner") || node).append(spot);
+      return spot;
+    })();
+    const badge = document.createElement("span");
+    badge.className = "badge badge--bottom-left color-inverse";
+    badge.textContent = product.soldOut ? "Épuisé" : "Promo";
+    holder.append(badge);
+  }
+
+  function showProductPageFlagBadges(product) {
+    const soldBadge = document.querySelector(".price__badge-sold-out");
+    const saleBadge = document.querySelector(".price__badge-sale");
+    if (soldBadge) {
+      soldBadge.classList.toggle("hidden", !product.soldOut);
+    }
+    if (saleBadge) {
+      saleBadge.classList.toggle("hidden", !product.promo);
+      return;
+    }
+    if (!product.soldOut && !product.promo) return;
+    const price = document.querySelector(".dynamic-product-info .price--large");
+    if (!price || price.querySelector(".page-flag")) return;
+    const badge = document.createElement("span");
+    badge.className = `badge page-flag${product.soldOut ? " page-flag--soldout" : " page-flag--promo"}`;
+    badge.textContent = product.soldOut ? "Épuisé" : "Promo";
+    price.append(" ", badge);
+  }
+
   function fillProductCard(card, product) {
     card.querySelectorAll(".card__heading a").forEach((link) => {
       link.href = `/product/${encodeURIComponent(product.slug)}`;
@@ -174,6 +220,8 @@
     card.querySelectorAll(".card__media .template-image-placeholder, .card__media img").forEach((media) => {
       setProductImage(media, product);
     });
+    hideStaticBadges(card);
+    showProductFlagBadge(card, product);
   }
 
   function fillProductPage(product) {
@@ -193,6 +241,14 @@
     document.querySelectorAll("#dynamic-product-image, .product__media-item .template-image-placeholder, .product__media img").forEach((image) => {
       setProductImage(image, product);
     });
+    hideStaticBadges(document.querySelector("product-info") || document.body);
+    showProductPageFlagBadges(product);
+    const codButton = document.querySelector("#CodPopupOpen");
+    if (codButton) {
+      if (product.name) codButton.dataset.productTitle = product.name;
+      if (Number.isFinite(product.price)) codButton.dataset.price = product.price.toFixed(2);
+      if (product.imagePath) codButton.dataset.productImage = product.imagePath;
+    }
   }
 
   async function loadBackendProducts() {
@@ -411,6 +467,36 @@
     document.body.append(banner);
   }
 
+  async function loadBrands() {
+    const list = document.querySelector("#vendor-list");
+    if (!list) return;
+    try {
+      const response = await fetch("/api/brands", { credentials: "same-origin" });
+      if (!response.ok) return;
+      const brands = await response.json();
+      const fragment = document.createDocumentFragment();
+      if (!Array.isArray(brands) || !brands.length) {
+        const note = document.createElement("p");
+        note.className = "brands-empty";
+        note.textContent = "Aucune marque pour le moment.";
+        fragment.append(note);
+      } else {
+        for (const brand of brands) {
+          const item = document.createElement("div");
+          item.className = "vendor-item";
+          item.setAttribute("data-vendor", brand.name);
+          const title = document.createElement("h3");
+          title.textContent = brand.name;
+          item.append(title);
+          fragment.append(item);
+        }
+      }
+      list.replaceChildren(fragment);
+    } catch {
+      // La page reste fonctionnelle si la liste des marques est indisponible.
+    }
+  }
+
   function addAnalyticsPreferencesLink() {
     const footer = document.querySelector(".hpf-footer");
     if (!footer || footer.querySelector(".analytics-preferences")) return;
@@ -468,10 +554,12 @@
     renderStyles();
     const buyLabel = document.querySelector("#CodPopupOpen .cod-btn__text");
     if (buyLabel) buyLabel.textContent = "Ajouter au panier";
+    hideStaticBadges(document);
     const cart = readCart();
     setCartCount(cart);
     updateCartPage();
     loadBackendProducts();
+    loadBrands();
     applySiteContent();
     showAnalyticsConsent();
     addAnalyticsPreferencesLink();

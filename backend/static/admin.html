@@ -3,117 +3,154 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Administration | Aura Skin</title>
-    <link rel="stylesheet" href="/ikrame/panel.css">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Tableau de bord | Aura Skin</title>
+    <link rel="stylesheet" href="/ikrame/dashboard.css">
   </head>
-  <body class="admin-page">
-    <header class="admin-header">
-      <a class="admin-brand" href="/"><img src="/assets/aura-skin-logo.svg" alt="Aura Skin by Chayy"></a>
-      <div class="admin-tools"><span id="admin-email"></span><button id="logout-button" class="button button-light" type="button">Déconnexion</button></div>
-    </header>
-    <main class="admin-main">
-      <div class="admin-title-row">
-        <div><p class="eyebrow">Administration</p><h1>Tableau de bord</h1></div>
-      </div>
-      <nav class="admin-jump" aria-label="Sections du tableau de bord">
-        <a href="#contenu">1. Contenu du site</a>
-        <a href="#statistiques" class="owner-only" hidden>Statistiques</a>
-        <a href="#equipe" class="owner-only" hidden>Gestionnaires</a>
-        <a href="#catalogue">Produits</a>
-      </nav>
-      <section id="contenu" class="admin-section site-content-section" aria-labelledby="content-title">
-        <div class="section-title"><div><p class="eyebrow">Site</p><h2 id="content-title">1. Contenu du site</h2></div></div>
-        <p class="field-help">Modifie les textes et les photos des pages du site (accueil, panier, pages, politiques, blog). Les cartes produit se gèrent dans la section Catalogue ci-dessous.</p>
-        <div class="content-tabs" role="tablist">
-          <button id="tab-texts" class="button button-light" type="button" role="tab" aria-selected="true">Textes</button>
-          <button id="tab-images" class="button button-light" type="button" role="tab" aria-selected="false">Photos</button>
+  <body class="dash">
+    <div class="dash-shell">
+      <aside class="dash-sidebar" aria-label="Navigation">
+        <a class="dash-brand" href="/" aria-label="Retour au site"><img src="/assets/aura-skin-logo.svg" alt="Aura Skin by Chayy"></a>
+        <nav class="dash-nav" aria-label="Sections">
+          <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Vue d’ensemble</span></a>
+          <a href="#content" data-view="content"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-8 8"/></svg><span>Contenu du site</span></a>
+          <a href="#products" data-view="products"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><span>Produits</span></a>
+          <a href="#analytics" data-view="analytics" class="owner-only" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Statistiques</span></a>
+          <a href="#team" data-view="team" class="owner-only" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 11a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6"/></svg><span>Équipe</span></a>
+        </nav>
+        <div class="dash-foot">
+          <span id="admin-email" class="dash-email"></span>
+          <button id="logout-button" class="btn btn-ghost" type="button">Déconnexion</button>
         </div>
-        <div id="content-texts-panel">
-          <label>Rechercher<input id="text-filter" type="search" placeholder="Mot ou phrase"></label>
-          <div id="text-list" class="content-list"></div>
-        </div>
-        <div id="content-images-panel" hidden>
-          <label>Page<select id="image-page"></select></label>
-          <div id="image-list" class="content-list"></div>
-        </div>
-        <p id="content-message" class="field-help" aria-live="polite"></p>
-      </section>
-      <section id="statistiques" class="analytics-dashboard admin-section owner-only" aria-labelledby="analytics-title" hidden>
-        <div class="section-title">
-          <div><p class="eyebrow">Audience</p><h2 id="analytics-title">Analytique anonyme</h2></div>
-          <label class="range-select">Période<select id="analytics-days" aria-label="Période analytique">
-            <option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option>
-          </select></label>
-        </div>
-        <p class="analytics-note">Statistiques limitées aux visiteurs ayant accepté le suivi anonyme.</p>
-        <div class="analytics-kpis">
-          <article class="analytics-kpi"><span>Visiteurs estimés</span><strong id="metric-visitors">—</strong></article>
-          <article class="analytics-kpi"><span>Pages vues</span><strong id="metric-page-views">—</strong></article>
-          <article class="analytics-kpi"><span>Clics sur les liens</span><strong id="metric-link-clicks">—</strong></article>
-          <article class="analytics-kpi"><span>Visiteurs ayant défilé à 75 %</span><strong id="metric-scroll-75">—</strong></article>
-        </div>
-        <div class="admin-export-actions owner-only" hidden>
-          <a class="button button-light" href="/api/panel/export/products.csv">Exporter les produits CSV</a>
-          <a class="button button-light" href="/api/panel/export/customer-emails.csv">Exporter les emails clients CSV</a>
-          <p class="field-help">Le fichier emails est compatible avec l’import Google/Gmail Contacts.</p>
-        </div>
-        <div class="analytics-breakdowns">
-          <section><h3>Pages consultées</h3><div id="analytics-pages" class="analytics-list"></div></section>
-          <section><h3>Liens les plus cliqués</h3><div id="analytics-links" class="analytics-list"></div></section>
-          <section><h3>Profondeur de défilement</h3><div id="analytics-scroll" class="analytics-list"></div></section>
-        </div>
-        <p id="analytics-message" class="field-help" aria-live="polite"></p>
-      </section>
-      <section id="equipe" class="manager-access admin-section owner-only" hidden aria-labelledby="manager-title">
-        <div class="section-title"><div><p class="eyebrow">Équipe</p><h2 id="manager-title">Gestionnaires catalogue</h2></div></div>
-        <div class="manager-layout">
-          <form id="manager-form" class="form-stack">
-            <label>Email du gestionnaire<input name="email" type="email" autocomplete="off" required maxlength="254"></label>
-            <label>Mot de passe temporaire<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="256"><span class="field-help">12 caractères minimum. Transmets-le au gestionnaire de façon sécurisée.</span></label>
-            <p class="form-message" role="status" aria-live="polite"></p>
-            <button class="button button-dark" type="submit">Créer un accès gestionnaire</button>
-          </form>
+      </aside>
+
+      <main class="dash-main">
+        <header class="dash-topbar">
           <div>
-            <h3>Accès existants</h3>
-            <div id="manager-list" class="manager-list"></div>
-            <p id="manager-message" class="field-help" aria-live="polite"></p>
+            <p id="view-eyebrow" class="eyebrow"></p>
+            <h1 id="view-title"></h1>
           </div>
-        </div>
-      </section>
-      <div id="catalogue" class="admin-layout">
-        <section class="admin-section product-editor">
-          <div class="section-title"><h2 id="editor-title">Ajouter un produit</h2><button id="cancel-edit" class="text-button" type="button" hidden>Annuler la modification</button></div>
-          <form id="product-form" class="form-stack">
-            <input type="hidden" name="editing_slug">
-            <input type="hidden" name="slug">
-            <label>Nom du produit<input name="name" required maxlength="160"></label>
-            <div class="form-row">
-              <label>Marque<input name="brand" maxlength="120"></label>
-              <label>Prix (DH)<input name="price" type="number" min="0" max="100000000" step="0.01" required></label>
+          <div id="view-actions" class="dash-actions"></div>
+        </header>
+
+        <section class="dash-view" data-panel="overview" aria-labelledby="overview-title">
+          <h2 id="overview-title" class="sr-only">Vue d’ensemble</h2>
+          <div id="kpis" class="kpi-grid"></div>
+          <div class="overview-grid">
+            <article class="card">
+              <div class="card-head"><h3>À compléter</h3><span class="muted">Pages avec des photos vides</span></div>
+              <div id="todo-list" class="todo-list"></div>
+            </article>
+            <article class="card">
+              <div class="card-head"><h3>Actions rapides</h3></div>
+              <div class="quick-actions">
+                <button class="quick" type="button" data-go="products"><strong>Ajouter un produit</strong><span>Nom, prix, photo, catégorie</span></button>
+                <button class="quick" type="button" data-go="content"><strong>Changer une photo</strong><span>Bannières, marques, menu</span></button>
+                <button class="quick" type="button" data-go="content" data-tab="texts"><strong>Modifier un texte</strong><span>Titres, paragraphes, livraison</span></button>
+                <a class="quick" href="/" target="_blank" rel="noopener noreferrer"><strong>Voir le site</strong><span>Ouvrir la boutique</span></a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="dash-view" data-panel="content" aria-labelledby="content-title" hidden>
+          <h2 id="content-title" class="sr-only">Contenu du site</h2>
+          <div class="seg" role="tablist" aria-label="Type de contenu">
+            <button id="tab-images" type="button" role="tab" aria-selected="true">Photos</button>
+            <button id="tab-texts" type="button" role="tab" aria-selected="false">Textes</button>
+            <button id="tab-brands" type="button" role="tab" aria-selected="false">Marques</button>
+          </div>
+
+          <div id="panel-images" class="content-layout">
+            <nav id="page-list" class="page-list" aria-label="Pages du site"></nav>
+            <div class="card">
+              <div class="card-head">
+                <div><h3 id="page-title">Accueil</h3><span id="page-progress" class="muted"></span></div>
+                <label class="search"><span class="sr-only">Rechercher une photo</span><input id="slot-search" type="search" placeholder="Rechercher une photo"></label>
+              </div>
+              <div id="slot-grid" class="slot-grid"></div>
             </div>
-            <label>Catégorie<select name="category" required>
-              <option value="nouveaux-produits">Nouveautés</option>
-              <option value="parfums-1">Parfums</option>
-              <option value="visage">Visage</option>
-              <option value="maquillage">Maquillage</option>
-              <option value="soins-capillaires">Cheveux</option>
-              <option value="corps">Corps</option>
-              <option value="soins-dentaires">Soins dentaires</option>
-            </select></label>
-            <label>Description<textarea name="description" rows="5" maxlength="10000"></textarea></label>
-            <label>Photo du produit<input name="image" type="file" accept="image/jpeg,image/png,image/webp"><span class="field-help">JPG, PNG ou WebP, 5 Mo maximum.</span></label>
-            <div class="image-preview" id="image-preview" hidden></div>
-            <p class="form-message" role="status" aria-live="polite"></p>
-            <button class="button button-dark" type="submit">Enregistrer le produit</button>
-          </form>
+          </div>
+
+          <div id="panel-texts" class="card" hidden>
+            <div class="card-head">
+              <div><h3>Textes du site</h3><span class="muted">Modifie un texte puis enregistre. Les textes répétés changent partout.</span></div>
+              <label class="search"><span class="sr-only">Rechercher un texte</span><input id="text-filter" type="search" placeholder="Rechercher un texte"></label>
+            </div>
+            <div id="text-list" class="text-list"></div>
+          </div>
+
+          <div id="panel-brands" class="card" hidden>
+            <div class="card-head">
+              <div><h3>Marques de la boutique</h3><span class="muted">Ajoute ou supprime les marques affichées sur la page Marques.</span></div>
+              <span id="brand-count" class="muted"></span>
+            </div>
+            <form id="brand-form" class="brand-form">
+              <input id="brand-name" name="name" type="text" placeholder="Nom de la marque" autocomplete="off" required maxlength="60">
+              <button class="btn btn-primary" type="submit">Ajouter la marque</button>
+            </form>
+            <div id="brand-list" class="manager-list"></div>
+          </div>
         </section>
-        <section class="admin-section product-list-section">
-          <div class="section-title"><h2>Catalogue en ligne</h2><p id="product-count" class="product-count"></p><button id="refresh-products" class="text-button" type="button">Actualiser</button></div>
-          <div id="product-list" class="product-list" aria-live="polite"></div>
-          <p id="list-message" class="field-help"></p>
+
+        <section class="dash-view" data-panel="products" aria-labelledby="products-title" hidden>
+          <h2 id="products-title" class="sr-only">Produits</h2>
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Catalogue en ligne</h3><span id="product-count" class="muted"></span></div>
+              <label class="search"><span class="sr-only">Rechercher un produit</span><input id="product-search" type="search" placeholder="Rechercher un produit"></label>
+            </div>
+            <div id="product-list" class="product-grid"></div>
+          </div>
         </section>
-      </div>
-    </main>
-    <script src="/ikrame/panel.js" defer></script>
+
+        <section class="dash-view owner-only" data-panel="analytics" aria-labelledby="analytics-title" hidden>
+          <h2 id="analytics-title" class="sr-only">Statistiques</h2>
+          <div class="card-head">
+            <p class="muted">Visiteurs anonymes ayant accepté le suivi. Aucun détail personnel n’est collecté.</p>
+            <label class="field inline">Période
+              <select id="analytics-days"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option></select>
+            </label>
+          </div>
+          <div id="analytics-kpis" class="kpi-grid"></div>
+          <div class="overview-grid">
+            <article class="card"><h3>Pages consultées</h3><div id="analytics-pages" class="bars"></div></article>
+            <article class="card"><h3>Liens les plus cliqués</h3><div id="analytics-links" class="bars"></div></article>
+          </div>
+          <article class="card">
+            <h3>Profondeur de défilement</h3>
+            <div id="analytics-scroll" class="bars"></div>
+            <div class="export-row">
+              <a class="btn btn-soft" href="/api/panel/export/products.csv">Exporter les produits (CSV)</a>
+              <a class="btn btn-soft" href="/api/panel/export/customer-emails.csv">Exporter les emails clients (CSV)</a>
+            </div>
+          </article>
+        </section>
+
+        <section class="dash-view owner-only" data-panel="team" aria-labelledby="team-title" hidden>
+          <h2 id="team-title" class="sr-only">Équipe</h2>
+          <div class="overview-grid">
+            <article class="card">
+              <h3>Ajouter un gestionnaire</h3>
+              <p class="muted">Un gestionnaire peut gérer les produits et les photos, sans accès aux statistiques ni aux exports.</p>
+              <form id="manager-form" class="form-stack">
+                <label class="field">Email<input name="email" type="email" autocomplete="off" required maxlength="254"></label>
+                <label class="field">Mot de passe temporaire<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="256"><span class="hint">12 caractères minimum. Transmets-le de façon sécurisée.</span></label>
+                <button class="btn btn-primary" type="submit">Créer l’accès</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>Accès actifs</h3>
+              <div id="manager-list" class="manager-list"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="image-dialog" class="dash-dialog" aria-labelledby="image-dialog-title"></dialog>
+    <dialog id="product-dialog" class="dash-dialog" aria-labelledby="product-dialog-title"></dialog>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <script src="/ikrame/dashboard.js" defer></script>
   </body>
 </html>
